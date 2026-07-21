@@ -101,6 +101,7 @@ class Engine:
         self._app_version = _read_app_version()
         self._dev_mode = dev_mode
         self._camera_profile: CameraProfile = DEFAULT_CAMERA_PROFILE
+        self._solver_profile: CameraProfile | None = None
 
         # Sample injector (continuous JPEG injection for dev/debug)
         self._sample_injector = SampleInjector(self._frame_buffer)
@@ -404,6 +405,7 @@ class Engine:
                 fov_estimate_deg=profile.fov_estimate_deg,
                 fov_max_error_deg=profile.fov_max_error_deg,
             )
+            self._solver_profile = profile
             logger.info(
                 "Camera profile: %s (FOV %.2f° ± %.2f°)",
                 profile.label,
@@ -413,6 +415,7 @@ class Engine:
         except Exception as exc:
             logger.error("Failed to load tetra3rs database: %s", exc)
             self._solver = None
+            self._solver_profile = None
 
     def startup_stellarium(self) -> None:
         """Start Stellarium TCP server."""
@@ -563,9 +566,14 @@ class Engine:
         # reap any orphaned camera_server left over from the prior failure.
         self._subprocess_mgr = None
         self.startup_camera()
-        if self.camera_connected and self._solver_thread is None:
-            self.startup_solver()
-            self.startup_solver_thread()
+        if self.camera_connected:
+            if self._solver is None or getattr(self, "_solver_profile", None) != self._camera_profile:
+                if self._solver_thread is not None:
+                    self._solver_thread.stop()
+                    self._solver_thread = None
+                self.startup_solver()
+            if self._solver_thread is None:
+                self.startup_solver_thread()
         return self.camera_connected
 
     def startup_solver_thread(self) -> None:
