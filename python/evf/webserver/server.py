@@ -48,6 +48,7 @@ _MAX_WS_CLIENTS = 10  # cap concurrent WebSocket connections
 _MAX_MJPEG_CLIENTS = 4
 _MJPEG_BOUNDARY = b"frame"
 _MJPEG_INTERVAL = 0.1  # 10 Hz
+_MJPEG_WRITE_TIMEOUT = 5.0  # drop clients that stop consuming the stream
 
 # Camera image geometry — must match the React UI's overlay assumptions.
 _FOV_H = 8.86   # horizontal FOV in degrees
@@ -325,6 +326,10 @@ class WebServer:
             logger.warning("MJPEG client limit reached (%d), rejecting", _MAX_MJPEG_CLIENTS)
             raise web.HTTPServiceUnavailable(reason="Too many MJPEG clients")
         self._mjpeg_clients += 1
+        logger.debug(
+            "MJPEG client connected (%d/%d)",
+            self._mjpeg_clients, _MAX_MJPEG_CLIENTS,
+        )
         try:
             resp = web.StreamResponse(
                 status=200,
@@ -341,6 +346,10 @@ class WebServer:
             last_frame_id = -1
             try:
                 while True:
+                    transport = request.transport
+                    if transport is None or transport.is_closing():
+                        break
+
                     jpeg, _ts, fid = self._frame_buffer.get()
                     if jpeg is not None and fid != last_frame_id:
                         last_frame_id = fid
@@ -350,12 +359,25 @@ class WebServer:
                             b"Content-Length: " + str(len(jpeg)).encode() + b"\r\n\r\n"
                             + jpeg + b"\r\n"
                         )
-                        await resp.write(part)
+                        try:
+                            await asyncio.wait_for(
+                                resp.write(part),
+                                timeout=_MJPEG_WRITE_TIMEOUT,
+                            )
+                        except asyncio.TimeoutError:
+                            logger.warning(
+                                "MJPEG client stopped consuming data; closing stream"
+                            )
+                            break
                     await asyncio.sleep(_MJPEG_INTERVAL)
-            except (asyncio.CancelledError, ConnectionResetError):
+            except (asyncio.CancelledError, ConnectionError):
                 pass
         finally:
             self._mjpeg_clients -= 1
+            logger.debug(
+                "MJPEG client disconnected (%d/%d)",
+                self._mjpeg_clients, _MAX_MJPEG_CLIENTS,
+            )
         return resp
 
     async def _handle_ws(self, request: web.Request) -> web.WebSocketResponse:
