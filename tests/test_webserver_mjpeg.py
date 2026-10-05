@@ -86,3 +86,17 @@ async def test_mjpeg_client_limit(server):
             # 5th should be rejected
             async with s.get(f"http://127.0.0.1:{server._port}/frame.mjpg") as resp5:
                 assert resp5.status == 503
+
+
+@pytest.mark.asyncio
+async def test_mjpeg_client_slot_released_after_disconnect(server):
+    """Closing a stream must release its slot so repeated views cannot exhaust the cap."""
+    url = f"http://127.0.0.1:{server._port}/frame.mjpg"
+    async with ClientSession() as s:
+        for _ in range(8):
+            async with s.get(url) as resp:
+                assert resp.status == 200
+                await resp.content.read(64)
+
+        async with s.get(url) as resp:
+            assert resp.status == 200
