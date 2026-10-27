@@ -2,11 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import objectsData from "@/data/objects.json";
 import type { AdvancedEntry, CatalogObject } from "@/lib/catalogTypes";
+import {
+  OBSERVATION_LISTS_KEY, readObservationState, resolveObservationTarget,
+  type ObservationState,
+} from "@/lib/observationLists";
 import type { EnginePayload } from "@/lib/types";
 import { CatalogDetail } from "./CatalogDetail";
 import { LocationPanel } from "./LocationPanel";
 import { BuddyTab } from "./buddy/BuddyTab";
 import { AdvancedTab } from "./advanced/AdvancedTab";
+import { ObservationListsTab } from "./ObservationListsTab";
 
 const objects = objectsData as CatalogObject[];
 const SELECTED_KEY = "pushnav.catalog.selected";
@@ -72,10 +77,25 @@ export function WhatToSee({ state, onSwitchToNavigation }: Props) {
     writeAdvancedSelection(e);
   };
 
-  const [subtab, setSubtabState] = useState<"buddy" | "advanced">(() => {
-    return localStorage.getItem(SUBTAB_KEY) === "advanced" ? "advanced" : "buddy";
+  const [observation, setObservation] = useState(readObservationState);
+  const saveObservation = (next: ObservationState): boolean => {
+    try {
+      localStorage.setItem(OBSERVATION_LISTS_KEY, JSON.stringify(next));
+      setObservation(next);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const activeList = observation.lists[observation.activeListIndex] ?? null;
+  const activeTarget = activeList?.targets[activeList.selectedIndex] ?? null;
+  const listEntry = activeTarget ? resolveObservationTarget(activeTarget.name) : null;
+
+  const [subtab, setSubtabState] = useState<"buddy" | "advanced" | "lists">(() => {
+    const saved = localStorage.getItem(SUBTAB_KEY);
+    return saved === "advanced" || saved === "lists" ? saved : "buddy";
   });
-  const setSubtab = (v: "buddy" | "advanced") => {
+  const setSubtab = (v: "buddy" | "advanced" | "lists") => {
     setSubtabState(v);
     localStorage.setItem(SUBTAB_KEY, v);
   };
@@ -107,6 +127,18 @@ export function WhatToSee({ state, onSwitchToNavigation }: Props) {
         >
           Advanced
         </button>
+        <button
+          type="button"
+          onClick={() => setSubtab("lists")}
+          className={
+            "px-3 py-1 rounded-md text-xs " +
+            (subtab === "lists"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground")
+          }
+        >
+          Observing Lists
+        </button>
       </div>
 
       <div className="flex flex-col lg:grid lg:grid-cols-3 lg:grid-rows-1 gap-3 lg:h-full lg:min-h-0 lg:overflow-hidden">
@@ -120,26 +152,36 @@ export function WhatToSee({ state, onSwitchToNavigation }: Props) {
             selectedId={selectedId}
             setSelectedId={setSelectedId}
           />
-        ) : (
+        ) : subtab === "advanced" ? (
           <AdvancedTab
             selected={advancedSelected}
             onSelect={setAdvancedSelected}
           />
+        ) : (
+          <ObservationListsTab value={observation} onChange={saveObservation} />
         )}
 
         <Card className="lg:col-span-1 lg:min-h-0 lg:overflow-y-auto pushnav-scrollbar flex flex-col gap-3 px-4 py-3 text-sm">
           <LocationPanel state={state} />
           <div className="border-t border-border/60 -mx-4" />
-          <CatalogDetail
-            input={
-              subtab === "buddy"
-                ? (selected ? { kind: "buddy", object: selected } : null)
-                : (advancedSelected ? { kind: "advanced", entry: advancedSelected } : null)
-            }
-            location={location}
-            evalAt={evalAt}
-            onTargetSet={onSwitchToNavigation}
-          />
+          {subtab === "lists" && activeTarget && !listEntry ? (
+            <div className="text-sm text-destructive">
+              {activeTarget.name} was not found in the catalog.
+            </div>
+          ) : (
+            <CatalogDetail
+              input={
+                subtab === "buddy"
+                  ? (selected ? { kind: "buddy", object: selected } : null)
+                  : subtab === "advanced"
+                    ? (advancedSelected ? { kind: "advanced", entry: advancedSelected } : null)
+                    : (listEntry ? { kind: "advanced", entry: listEntry } : null)
+              }
+              location={location}
+              evalAt={evalAt}
+              onTargetSet={onSwitchToNavigation}
+            />
+          )}
         </Card>
       </div>
     </div>
