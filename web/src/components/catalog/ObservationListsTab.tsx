@@ -60,6 +60,7 @@ export function ObservationListsTab({ value, onChange }: Props) {
       return;
     }
     if (save({ lists: [...lists, ...imported], activeListIndex: lists.length })) {
+      setConfirmDelete(false);
       setText("");
     }
   }
@@ -121,6 +122,7 @@ export function ObservationListsTab({ value, onChange }: Props) {
       </details>
 
       {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
+      <p className="text-xs text-muted-foreground">Lists and progress stay in this browser.</p>
 
       {active && (
         <>
