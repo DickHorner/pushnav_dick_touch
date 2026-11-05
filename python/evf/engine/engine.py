@@ -177,6 +177,13 @@ class Engine:
         return 0
 
     @property
+    def solver_activity(self) -> tuple[bool, float]:
+        thread = self._solver_thread
+        if thread is None:
+            return False, 0.0
+        return thread.running, thread.last_attempt_timestamp
+
+    @property
     def audio_enabled(self) -> bool:
         return self._config.audio_enabled
 
@@ -456,6 +463,7 @@ class Engine:
                 self._goto_target,
                 self._config,
                 frame_buffer=self._frame_buffer,
+                solver_activity=lambda: self.solver_activity,
                 stellarium_object=lambda: self.stellarium_object,
                 camera_controls=lambda: self.camera_controls,
                 sync_state=lambda: {
