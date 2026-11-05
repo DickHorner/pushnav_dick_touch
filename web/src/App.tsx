@@ -48,22 +48,32 @@ export default function App() {
             <div className="max-w-5xl mx-auto px-2 pt-2 w-full shrink-0">
               <StateHeader state={state} view={view} onViewChange={setView} />
             </div>
-            {view === "navigation" ? (
-              <div className="grid md:grid-cols-3 gap-2 max-w-5xl mx-auto px-2 pt-3 pb-2 items-stretch w-full flex-1">
-                <div className="md:col-span-2 flex flex-col gap-2">
-                  <LiveView state={state} showStars={showStars} />
-                  <StepIndicator state={state} />
-                  {/* Wizard fills the remaining column height so its bottom
-                      aligns with the right column's Settings card. The
-                      [&>*]:flex-1 selector targets Wizard's direct DOM child
-                      (the Card or grid emitted by whichever step renders)
-                      and makes it flex-1 within this growing wrapper —
-                      essential for TrackingStep, whose two-card grid would
-                      otherwise leave dead space below it. */}
-                  <div className="flex-1 flex flex-col [&>*]:flex-1">
-                    <Wizard state={state} />
-                  </div>
-                </div>
+            <div
+              className={
+                view === "navigation"
+                  ? "grid md:grid-cols-3 gap-2 max-w-5xl mx-auto px-2 pt-3 pb-2 items-stretch w-full flex-1"
+                  : "hidden"
+              }
+            >
+              <div className="md:col-span-2 flex flex-col gap-2">
+                <LiveView state={state} showStars={showStars} />
+                {view === "navigation" && (
+                  <>
+                    <StepIndicator state={state} />
+                    {/* Wizard fills the remaining column height so its bottom
+                        aligns with the right column's Settings card. The
+                        [&>*]:flex-1 selector targets Wizard's direct DOM child
+                        (the Card or grid emitted by whichever step renders)
+                        and makes it flex-1 within this growing wrapper —
+                        essential for TrackingStep, whose two-card grid would
+                        otherwise leave dead space below it. */}
+                    <div className="flex-1 flex flex-col [&>*]:flex-1">
+                      <Wizard state={state} />
+                    </div>
+                  </>
+                )}
+              </div>
+              {view === "navigation" && (
                 <div className="flex flex-col gap-2">
                   <CameraControls controls={state.controls} />
                   <Connectivity state={state} />
@@ -74,8 +84,9 @@ export default function App() {
                     className="flex-1"
                   />
                 </div>
-              </div>
-            ) : (
+              )}
+            </div>
+            {view === "catalog" && (
               <div className="max-w-5xl mx-auto px-2 pt-3 pb-2 w-full flex-1 min-h-0">
                 <WhatToSee
                   state={state}
