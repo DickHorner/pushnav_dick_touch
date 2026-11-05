@@ -62,6 +62,7 @@ class SolverThread:
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._consecutive_failures = 0
+        self._last_attempt_timestamp = 0.0
         self._lock = threading.Lock()
         self._sync_d_body = None  # np.ndarray | None — body-frame sync vector
         # Calibration state
@@ -78,6 +79,7 @@ class SolverThread:
         self._stop_event.clear()
         with self._lock:
             self._consecutive_failures = 0
+            self._last_attempt_timestamp = 0.0
         if self._audio:
             self._audio.reset()
         self._state_machine.transition(EngineState.WARMING_UP)
@@ -98,6 +100,16 @@ class SolverThread:
         with self._lock:
             return self._consecutive_failures
 
+    @property
+    def running(self) -> bool:
+        thread = self._thread
+        return thread is not None and thread.is_alive()
+
+    @property
+    def last_attempt_timestamp(self) -> float:
+        with self._lock:
+            return self._last_attempt_timestamp
+
     def set_sync_d_body(self, d_body) -> None:
         """Set or clear the body-frame sync vector applied to solve results."""
         self._sync_d_body = d_body
@@ -114,6 +126,7 @@ class SolverThread:
         self._stop_event.clear()
         with self._lock:
             self._consecutive_failures = 0
+            self._last_attempt_timestamp = 0.0
         if self._audio:
             self._audio.reset()
         self._state_machine.transition(EngineState.CALIBRATE)
@@ -215,6 +228,8 @@ class SolverThread:
 
             try:
                 t_start = time.monotonic()
+                with self._lock:
+                    self._last_attempt_timestamp = t_start
                 result = self._solver.solve_frame(jpeg_bytes)
                 t_total = (time.monotonic() - t_start) * 1000
                 logger.debug(
