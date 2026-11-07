@@ -73,7 +73,7 @@ export function DebugPanel({ state }: Props) {
         >
           Inject Capella
         </Button>
-        <div>
+        {!state.sim_mode && <div>
           <div className="mb-1 text-xs text-muted-foreground">
             Inject sample image as video input:
           </div>
@@ -93,7 +93,7 @@ export function DebugPanel({ state }: Props) {
               );
             })}
           </div>
-        </div>
+        </div>}
       </CardContent>
     </Card>
   );
