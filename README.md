@@ -192,7 +192,8 @@ uv run python -m evf.main --simulate
 ```
 
 The simulator immediately enters tracking, streams a synthetic 1280x720
-star field at 10 Hz, and publishes simulated J2000 pointing coordinates.
+star field at 10 Hz (with a blinking green live indicator), and publishes
+simulated J2000 pointing coordinates.
 The **Simulator** panel lets you move RA/Dec in 0.1°, 1°, or 5° steps or
 center on the currently selected catalog target. The same MJPEG, WebSocket,
 GOTO, and planetarium-server paths remain active. The generated star pattern
