@@ -58,3 +58,15 @@ def test_simulator_rejects_invalid_moves(dra, ddec):
     sim = SimulatedTelescope(LatestFrame(), PointingState(), StateMachine())
     with pytest.raises(ValueError, match="Invalid simulated movement"):
         sim.move(dra, ddec)
+
+
+def test_simulator_stream_has_visible_heartbeat():
+    frames = LatestFrame()
+    sim = SimulatedTelescope(frames, PointingState(), StateMachine())
+    sim.start()
+    try:
+        first = frames.get()[0]
+        time.sleep(0.65)
+        assert frames.get()[0] != first
+    finally:
+        sim.stop()
