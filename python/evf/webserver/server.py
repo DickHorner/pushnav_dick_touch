@@ -70,6 +70,7 @@ class EngineActions(Protocol):
     def set_audio_enabled(self, enabled: bool) -> None: ...
     def inject_sample(self, name: str | None) -> None: ...
     def inject_target(self, ra_deg: float, dec_deg: float) -> None: ...
+    def sim_move(self, delta_ra_deg: float, delta_dec_deg: float) -> None: ...
     def capture_frame(self): ...  # returns Path | None
     def set_min_matches(self, value: int) -> None: ...
     def set_max_prob(self, value: float) -> None: ...
@@ -158,6 +159,7 @@ class WebServer:
         location: Callable[[], dict] | None = None,
         fov_h_deg: Callable[[], float] | None = None,
         dev_mode: bool = False,
+        sim_mode: bool = False,
         sample_active: Callable[[], str | None] | None = None,
         actions: "EngineActions | None" = None,
     ) -> None:
@@ -175,6 +177,7 @@ class WebServer:
         self._location_fn = location
         self._fov_h_deg = fov_h_deg
         self._dev_mode = dev_mode
+        self._sim_mode = sim_mode
         self._sample_active = sample_active
         self._actions = actions
 
@@ -244,6 +247,7 @@ class WebServer:
         app.router.add_post("/api/goto/set", self._api_goto_set)
         app.router.add_post("/api/settings", self._api_settings)
         app.router.add_post("/api/dev/inject-sample", self._api_dev_inject_sample)
+        app.router.add_post("/api/dev/sim/move", self._api_sim_move)
         app.router.add_post("/api/dev/inject-target", self._api_dev_inject_target)
         app.router.add_post("/api/dev/capture-frame", self._api_dev_capture_frame)
         app.router.add_static("/sounds", sounds_dir(), name="sounds")
@@ -522,6 +526,24 @@ class WebServer:
                 return resp
         return web.Response(status=204)
 
+    async def _api_sim_move(self, request: web.Request) -> web.Response:
+        if not self._sim_mode:
+            return web.Response(status=404, text="Simulator is disabled")
+        try:
+            body = await request.json()
+            delta_ra = float(body["delta_ra_deg"])
+            delta_dec = float(body["delta_dec_deg"])
+            if (
+                not math.isfinite(delta_ra) or not math.isfinite(delta_dec)
+                or abs(delta_ra) > 360 or abs(delta_dec) > 180
+            ):
+                raise ValueError("Movement outside simulator bounds")
+        except (KeyError, TypeError, ValueError):
+            return web.Response(status=400, text="Invalid simulated movement")
+        return await self._handle_api(
+            request, lambda: self._actions.sim_move(delta_ra, delta_dec),
+        )
+
     async def _api_dev_inject_sample(self, request):
         body = await request.json()
         name = body.get("name")  # str or None
@@ -558,7 +580,10 @@ class WebServer:
         target = self._goto_target.read()
         failures = self._solver_failures() if self._solver_failures else 0
         fov_h_deg = self._fov_h_deg() if self._fov_h_deg else _FOV_H
-        origin_x, origin_y = _compute_origin(self._config, fov_h_deg)
+        if self._sim_mode:
+            origin_x, origin_y = _IMG_W / 2.0, _IMG_H / 2.0
+        else:
+            origin_x, origin_y = _compute_origin(self._config, fov_h_deg)
         dx_off = origin_x - _IMG_W / 2.0
         dy_off = origin_y - _IMG_H / 2.0
 
@@ -614,9 +639,9 @@ class WebServer:
             "origin_y": origin_y,
             "image_w": _IMG_W,
             "image_h": _IMG_H,
-            "finder_rotation": self._config.finder_rotation,
+            "finder_rotation": 0.0 if self._sim_mode else self._config.finder_rotation,
             "fov_h_deg": fov_h_deg,
-            "has_calibration": self._config.has_calibration,
+            "has_calibration": not self._sim_mode and self._config.has_calibration,
             "image_size": list(snap.image_size) if snap.valid and snap.image_size else None,
             "controls": controls or [],
             "sync": sync_blk,
@@ -627,6 +652,7 @@ class WebServer:
             "camera": camera_blk,
             "location": location_blk,
             "dev_mode": self._dev_mode,
+            "sim_mode": self._sim_mode,
             "min_matches": self._config.min_matches,
             "max_prob": self._config.max_prob,
             "sample_active": (
