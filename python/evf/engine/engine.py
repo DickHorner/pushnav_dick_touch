@@ -41,6 +41,7 @@ from evf.engine.frame_buffer import LatestFrame
 from evf.engine.goto_target import GotoTarget
 from evf.engine.pointing import PointingState
 from evf.engine.sample_injector import SampleInjector
+from evf.engine.simulator import SimulatedTelescope
 from evf.engine.state import EngineState, StateMachine
 from evf.solver.solver import PlateSolver
 import numpy as np
@@ -90,6 +91,7 @@ class Engine:
         self,
         *,
         dev_mode: bool = False,
+        sim_mode: bool = False,
         config: ConfigManager | None = None,
     ) -> None:
         # Shared data structures
@@ -99,12 +101,14 @@ class Engine:
         self._config = config if config is not None else ConfigManager()
         self._goto_target = GotoTarget()
         self._app_version = _read_app_version()
-        self._dev_mode = dev_mode
+        self._dev_mode = dev_mode or sim_mode
+        self._sim_mode = sim_mode
         self._camera_profile: CameraProfile = DEFAULT_CAMERA_PROFILE
         self._solver_profile: CameraProfile | None = None
 
         # Sample injector (continuous JPEG injection for dev/debug)
         self._sample_injector = SampleInjector(self._frame_buffer)
+        self._simulator: SimulatedTelescope | None = None
 
         # Components (created during startup)
         self._solver: PlateSolver | None = None
@@ -160,7 +164,9 @@ class Engine:
 
     @property
     def camera_connected(self) -> bool:
-        """True if the camera subprocess is running and connected."""
+        """True if a real or simulated camera source is running."""
+        if self._sim_mode:
+            return self._simulator is not None and self._simulator.running
         return self._subprocess_mgr is not None and self._subprocess_mgr.running
 
     @property
@@ -250,11 +256,20 @@ class Engine:
         else:
             self._config.location = (float(latitude), float(longitude))
 
+    def sim_move(self, delta_ra_deg: float, delta_dec_deg: float) -> None:
+        """Move the synthetic telescope; never controls real hardware."""
+        if self._simulator is None:
+            raise RuntimeError("Simulator is not running")
+        self._simulator.move(delta_ra_deg, delta_dec_deg)
+
     def inject_sample(self, name: str | None) -> None:
         """Start/stop continuous injection of a sample image (dev only).
 
         name: one of {"a","b","c","d","orion"} or None to stop.
         """
+        if self._sim_mode:
+            logger.warning("Sample injection is unavailable in simulation mode")
+            return
         from evf.paths import samples_dir
         from evf.engine.sample_injector import load_sample_jpeg
 
@@ -396,6 +411,18 @@ class Engine:
         logger.info("EVF starting up")
         self._log_version()
 
+    def startup_simulator(self) -> None:
+        """Start synthetic frames and pointing, without a camera or solver."""
+        if not self._sim_mode:
+            raise RuntimeError("Simulation mode is not enabled")
+        if self._simulator is not None:
+            return
+        simulator = SimulatedTelescope(
+            self._frame_buffer, self._pointing_state, self._state_machine,
+        )
+        simulator.start()
+        self._simulator = simulator
+
     def startup_solver(self) -> None:
         """Load the tetra3rs database for the connected camera profile."""
         profile = self._camera_profile
@@ -491,6 +518,7 @@ class Engine:
                 location=lambda: self.location,
                 fov_h_deg=lambda: self.camera_fov_h_deg,
                 dev_mode=self._dev_mode,
+                sim_mode=self._sim_mode,
                 sample_active=lambda: self._sample_injector.active_name,
                 actions=self,
             )
@@ -559,6 +587,8 @@ class Engine:
         is identical to what already runs once at every launch.
         Returns the post-attempt camera_connected state.
         """
+        if self._sim_mode:
+            return self.camera_connected
         if self.camera_connected:
             return True
         # Drop the stale manager so startup_camera builds a fresh one;
@@ -629,6 +659,8 @@ class Engine:
         """Advance the wizard: SETUP → SYNC → SYNC_CONFIRM → CALIBRATE → WARMING_UP, or stop."""
         state = self._state_machine.state
         logger.info("step_advance called, state=%s", state.value)
+        if self._sim_mode:
+            return  # simulation remains in TRACKING until shutdown
         # Every forward step needs camera frames. Only the "stop tracking"
         # branch (WARMING_UP/TRACKING → SETUP) works without a camera.
         if not self.camera_connected and state not in (
@@ -782,6 +814,9 @@ class Engine:
     def shutdown(self) -> None:
         """Graceful shutdown. Each step with independent timeout."""
         logger.info("Shutting down")
+
+        if self._simulator is not None:
+            self._simulator.stop()
 
         # 0. Stop sample injector (so it stops writing frames before solver stops)
         try:
