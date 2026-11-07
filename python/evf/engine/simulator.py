@@ -46,7 +46,8 @@ class SimulatedTelescope:
              rng.choice((1, 1, 1, 2, 3)), rng.randrange(100, 255))
             for _ in range(220)
         ]
-        self._jpeg = self._render_frame(self._ra, self._dec)
+        self._jpeg = self._render_frame(self._ra, self._dec, live=False)
+        self._jpeg_live = self._render_frame(self._ra, self._dec, live=True)
 
     @property
     def running(self) -> bool:
@@ -79,20 +80,22 @@ class SimulatedTelescope:
         with self._lock:
             self._ra = (self._ra + delta_ra_deg) % 360.0
             self._dec = max(-90.0, min(90.0, self._dec + delta_dec_deg))
-            self._jpeg = self._render_frame(self._ra, self._dec)
+            self._jpeg = self._render_frame(self._ra, self._dec, live=False)
+            self._jpeg_live = self._render_frame(self._ra, self._dec, live=True)
             logger.info("Simulator pointing RA=%.3f Dec=%.3f", self._ra, self._dec)
 
     def _run(self) -> None:
         frame_id = 1
         while not self._stop.wait(self._INTERVAL):
             with self._lock:
-                ra, dec, jpeg = self._ra, self._dec, self._jpeg
+                ra, dec = self._ra, self._dec
+                jpeg = self._jpeg_live if (frame_id // 5) % 2 else self._jpeg
             now = time.monotonic()
             self._pointing.update(ra, dec, 0.0, 0, 0.0)
             frame_id += 1
             self._frame_buffer.set(jpeg, now, frame_id)
 
-    def _render_frame(self, ra: float, dec: float) -> bytes:
+    def _render_frame(self, ra: float, dec: float, *, live: bool) -> bytes:
         """Render a repeatable moving star pattern; not a real sky catalog."""
         image = Image.new("RGB", (self._WIDTH, self._HEIGHT), (5, 7, 16))
         draw = ImageDraw.Draw(image)
@@ -110,6 +113,10 @@ class SimulatedTelescope:
             (16, 16),
             f"SIMULATED CAMERA - NO PLATE SOLVING | RA {ra:.2f}  Dec {dec:+.2f}",
             fill=(255, 190, 90),
+        )
+        draw.ellipse(
+            (1240, 16, 1258, 34),
+            fill=(90, 255, 90) if live else (30, 65, 30),
         )
         output = io.BytesIO()
         image.save(output, format="JPEG", quality=85)
