@@ -54,14 +54,16 @@ export function TrackingStep({ state }: { state: EnginePayload }) {
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>Tracking</CardTitle>
-          <Badge variant={p.valid ? "default" : "destructive"}>
-            {p.valid ? "LOCK" : "LOST"}
+          <Badge variant={state.sim_mode ? "secondary" : p.valid ? "default" : "destructive"}>
+            {state.sim_mode ? "SIM" : p.valid ? "LOCK" : "LOST"}
           </Badge>
         </div>
         <CardDescription>
-          {p.valid
-            ? `RA ${p.ra_deg.toFixed(2)}° / Dec ${p.dec_deg.toFixed(2)}° / age ${(p.solve_age_s ?? 0).toFixed(1)}s`
-            : "Acquiring stars…"}
+          {state.sim_mode
+            ? `Simulated RA ${p.ra_deg.toFixed(2)}° / Dec ${p.dec_deg.toFixed(2)}°`
+            : p.valid
+              ? `RA ${p.ra_deg.toFixed(2)}° / Dec ${p.dec_deg.toFixed(2)}° / age ${(p.solve_age_s ?? 0).toFixed(1)}s`
+              : "Acquiring stars…"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -84,9 +86,11 @@ export function TrackingStep({ state }: { state: EnginePayload }) {
             </div>
           </div>
         )}
-        <Button variant="outline" onClick={() => api.wizardAdvance()}>
-          Stop tracking and restart setup
-        </Button>
+        {!state.sim_mode && (
+          <Button variant="outline" onClick={() => api.wizardAdvance()}>
+            Stop tracking and restart setup
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
