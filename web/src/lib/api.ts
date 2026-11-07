@@ -38,6 +38,8 @@ export const api = {
       post("/api/dev/inject-sample", { name }),
     injectTarget: (ra_deg: number, dec_deg: number) =>
       post("/api/dev/inject-target", { ra_deg, dec_deg }),
+    simMove: (delta_ra_deg: number, delta_dec_deg: number) =>
+      post("/api/dev/sim/move", { delta_ra_deg, delta_dec_deg }),
     captureFrame: async (): Promise<{ path: string | null; error?: string }> => {
       const resp = await fetch("/api/dev/capture-frame", { method: "POST" });
       return await resp.json();
