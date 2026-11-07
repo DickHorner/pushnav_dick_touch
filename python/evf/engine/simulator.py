@@ -9,6 +9,7 @@ import time
 
 from PIL import Image, ImageDraw
 
+from evf.camera.profile import DEFAULT_CAMERA_PROFILE
 from evf.engine.frame_buffer import LatestFrame
 from evf.engine.pointing import PointingState
 from evf.engine.state import EngineState, StateMachine
@@ -22,7 +23,7 @@ class SimulatedTelescope:
     _INTERVAL = 0.1  # Match the MJPEG/WebSocket cadence (10 Hz).
     _WIDTH = 1280
     _HEIGHT = 720
-    _FOV_H = 8.86
+    _FOV_H = DEFAULT_CAMERA_PROFILE.fov_estimate_deg
     _START_RA = 79.1723  # Capella, also used by the existing DebugPanel.
     _START_DEC = 45.998
 
