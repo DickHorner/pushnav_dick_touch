@@ -123,7 +123,8 @@ def main() -> None:
     # which truncates aiohttp static-file responses to ~440 bytes and
     # leaves the React bundle unparseable, so we keep the inspector off
     # by default even in dev_mode.
-    dev_mode = "--dev" in sys.argv or os.environ.get("PUSHNAV_DEBUG") == "1"
+    sim_mode = "--simulate" in sys.argv
+    dev_mode = sim_mode or "--dev" in sys.argv or os.environ.get("PUSHNAV_DEBUG") == "1"
     webview_debug = os.environ.get("WEBVIEW_DEBUG") == "1"
     no_window = "--no-window" in sys.argv
     # --react is now the default; accept the flag as a no-op for back-compat
@@ -135,10 +136,12 @@ def main() -> None:
     config = ConfigManager()
     _check_single_instance(config.web_port)
 
-    engine = Engine(dev_mode=dev_mode, config=config)
+    engine = Engine(dev_mode=dev_mode, sim_mode=sim_mode, config=config)
 
     # Engine + servers come up either way
     engine.startup_logging()
+    if sim_mode:
+        engine.startup_simulator()
     engine.startup_stellarium()
     engine.startup_lx200()
     engine.startup_webserver()
@@ -162,7 +165,8 @@ def main() -> None:
             logger.exception("Camera startup failed")
 
     if no_window:
-        _start_camera()  # headless: no window to unblock, so start it inline
+        if not sim_mode:
+            _start_camera()  # headless: no window to unblock, so start it inline
         logger.info("Running headless (--no-window). Press Ctrl-C to exit.")
         stop = threading.Event()
         signal.signal(signal.SIGINT, lambda *_: stop.set())
@@ -229,9 +233,10 @@ def main() -> None:
     # Connect the camera in the background so the window appears immediately
     # instead of blocking on the ~8 s camera-server retry (worst when no camera
     # is attached). daemon=True so it never holds up shutdown on window close.
-    threading.Thread(
-        target=_start_camera, name="camera-startup", daemon=True
-    ).start()
+    if not sim_mode:
+        threading.Thread(
+            target=_start_camera, name="camera-startup", daemon=True
+        ).start()
     # On Linux, force pywebview's Qt backend (QtPy + PyQt6 + PyQt6-WebEngine,
     # pulled in by the pywebview[qt] extra in pyproject.toml). Without this,
     # pywebview probes GTK first and only falls through to Qt on ImportError —

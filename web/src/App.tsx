@@ -11,6 +11,7 @@ import { ErrorModal } from "@/components/ErrorModal";
 import { StateHeader } from "@/components/StateHeader";
 import { StepIndicator } from "@/components/StepIndicator";
 import { DebugPanel } from "@/components/debug/DebugPanel";
+import { SimulatorControls } from "@/components/debug/SimulatorControls";
 import { WhatToSee } from "@/components/catalog/WhatToSee";
 
 function useLocalStorageBool(key: string, defaultValue: boolean) {
@@ -65,7 +66,11 @@ export default function App() {
                   </div>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <CameraControls controls={state.controls} />
+                  {state.sim_mode ? (
+                    <SimulatorControls state={state} />
+                  ) : (
+                    <CameraControls controls={state.controls} />
+                  )}
                   <Connectivity state={state} />
                   <Settings
                     state={state}

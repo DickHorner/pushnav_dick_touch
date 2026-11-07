@@ -73,27 +73,29 @@ export function DebugPanel({ state }: Props) {
         >
           Inject Capella
         </Button>
-        <div>
-          <div className="mb-1 text-xs text-muted-foreground">
-            Inject sample image as video input:
+        {!state.sim_mode && (
+          <div>
+            <div className="mb-1 text-xs text-muted-foreground">
+              Inject sample image as video input:
+            </div>
+            <div className="space-y-1">
+              {SAMPLES.map((n) => {
+                const active = activeSample === n;
+                return (
+                  <Button
+                    key={n}
+                    variant={active ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => toggleSample(n)}
+                    className="w-full justify-start"
+                  >
+                    {active ? "● " : "  "}Sample {n}.png
+                  </Button>
+                );
+              })}
+            </div>
           </div>
-          <div className="space-y-1">
-            {SAMPLES.map((n) => {
-              const active = activeSample === n;
-              return (
-                <Button
-                  key={n}
-                  variant={active ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => toggleSample(n)}
-                  className="w-full justify-start"
-                >
-                  {active ? "● " : "  "}Sample {n}.png
-                </Button>
-              );
-            })}
-          </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   );
