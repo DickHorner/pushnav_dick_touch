@@ -95,7 +95,7 @@ function HeaderStats({
       </StatColumn>
       <StatColumn divider>
         <Stat label="Prob" value={prob} />
-        <Stat label="Age" value={age} />
+        <Stat label={state.sim_mode ? "Mode" : "Age"} value={age} />
       </StatColumn>
       <div aria-hidden className="border-l border-border self-stretch" />
     </div>
