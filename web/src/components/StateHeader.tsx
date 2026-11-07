@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { RefreshCcw, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { TabSwitch } from "@/components/TabSwitch";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -76,10 +77,11 @@ function HeaderStats({
   const ra = p.valid ? formatRa(p.ra_deg) : "--";
   const dec = p.valid ? formatDec(p.dec_deg) : "--";
   const roll = p.valid ? `${p.roll_deg.toFixed(1)}°` : "--";
-  const matches = p.valid ? String(p.matches) : "--";
-  const prob = p.valid ? p.prob.toExponential(1) : "--";
-  const age =
-    p.solve_age_s !== null ? `${p.solve_age_s.toFixed(1)}s` : "--";
+  const matches = state.sim_mode ? "--" : p.valid ? String(p.matches) : "--";
+  const prob = state.sim_mode ? "--" : p.valid ? p.prob.toExponential(1) : "--";
+  const age = state.sim_mode
+    ? "SIM"
+    : p.solve_age_s !== null ? `${p.solve_age_s.toFixed(1)}s` : "--";
 
   return (
     <div className={cn("flex items-stretch gap-4", className)}>
@@ -142,6 +144,7 @@ export function StateHeader({ state, view, onViewChange }: Props) {
             className="h-8 w-auto"
           />
           <TabSwitch view={view} onChange={onViewChange} />
+          {state.sim_mode && <Badge variant="secondary">SIM</Badge>}
           {!state.camera.connected && <RetryCameraButton />}
         </div>
         <div className="flex items-center gap-4">
