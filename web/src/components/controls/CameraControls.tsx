@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
@@ -42,10 +42,9 @@ function formatControlValue(value: number, unit?: string): string {
 function ControlRow({ control }: { control: ControlDescriptor }) {
   const id = control.id ?? control.name ?? "";
   const serverValue = control.cur ?? control.value ?? control.min;
-  const [local, setLocal] = useState(serverValue);
-
-  // Reflect server-side updates
-  useEffect(() => { setLocal(serverValue); }, [serverValue]);
+  const [draft, setDraft] = useState({ base: serverValue, value: serverValue });
+  const local = draft.base === serverValue ? draft.value : serverValue;
+  const setLocal = (value: number) => setDraft({ base: serverValue, value });
 
   const commit = (v: number) => {
     setLocal(v);
