@@ -37,7 +37,7 @@ from evf.engine.frame_buffer import LatestFrame
 from evf.engine.goto_target import GotoTarget
 from evf.engine.navigation import compute_navigation, edge_arrow_position
 from evf.engine.pointing import PointingState
-from evf.engine.state import StateMachine
+from evf.engine.state import EngineState, StateMachine
 from evf.network import local_ip
 from evf.paths import sounds_dir, version_json, web_dist_dir
 
@@ -49,6 +49,8 @@ _MAX_MJPEG_CLIENTS = 4
 _MJPEG_BOUNDARY = b"frame"
 _MJPEG_INTERVAL = 0.1  # 10 Hz
 _MJPEG_WRITE_TIMEOUT = 5.0  # drop clients that stop consuming the stream
+_SOLVER_NO_SUCCESS_TIMEOUT = 10.0
+_SOLVER_HEALTH_LOG_INTERVAL = 30.0
 
 # Camera image geometry — must match the React UI's overlay assumptions.
 _FOV_H = 8.86   # horizontal FOV in degrees
@@ -151,6 +153,7 @@ class WebServer:
         *,
         frame_buffer: LatestFrame | None = None,
         solver_failures: Callable[[], int] | None = None,
+        solver_activity: Callable[[], tuple[bool, float]] | None = None,
         stellarium_object: Callable[[], dict | None] | None = None,
         camera_controls: Callable[[], list[dict] | None] | None = None,
         sync_state: Callable[[], dict] | None = None,
@@ -169,6 +172,7 @@ class WebServer:
         self._config = config
         self._frame_buffer = frame_buffer
         self._solver_failures = solver_failures
+        self._solver_activity = solver_activity
         self._stellarium_object = stellarium_object
         self._camera_controls = camera_controls
         self._sync_state = sync_state
@@ -187,6 +191,8 @@ class WebServer:
         self._thread: threading.Thread | None = None
         self._url: str | None = None
         self._port: int | None = None  # actual bound port (for tests on ephemeral port)
+        self._solve_watch_started: float | None = None
+        self._solve_watch_last_log: float | None = None
 
     # -- lifecycle ------------------------------------------------------------
 
@@ -416,9 +422,55 @@ class WebServer:
             logger.info("Web client disconnected")
         return ws
 
+    def _log_solver_health(self, now: float) -> None:
+        """Log stalled plate solving without changing tracking or camera state."""
+        state = self._state_machine.state
+        if state not in (
+            EngineState.CALIBRATE, EngineState.WARMING_UP, EngineState.TRACKING,
+        ):
+            self._solve_watch_started = None
+            self._solve_watch_last_log = None
+            return
+
+        if self._solve_watch_started is None:
+            self._solve_watch_started = now
+        last_success = self._pointing.read().last_success_timestamp
+        no_success_age = now - max(self._solve_watch_started, last_success)
+        if no_success_age < _SOLVER_NO_SUCCESS_TIMEOUT:
+            self._solve_watch_last_log = None
+            return
+        if (
+            self._solve_watch_last_log is not None
+            and now - self._solve_watch_last_log < _SOLVER_HEALTH_LOG_INTERVAL
+        ):
+            return
+
+        alive, last_attempt = (
+            self._solver_activity() if self._solver_activity else ("unknown", 0.0)
+        )
+        _, frame_ts, frame_id = (
+            self._frame_buffer.get() if self._frame_buffer else (None, 0.0, 0)
+        )
+        failures = self._solver_failures() if self._solver_failures else "unknown"
+        self._solve_watch_last_log = now
+        logger.warning(
+            "No valid plate solve for %.1fs: state=%s solver_alive=%s "
+            "last_attempt_start_age=%s last_success_age=%s "
+            "frame_age=%s frame_id=%d consecutive_failures=%s",
+            no_success_age,
+            state.value,
+            alive,
+            f"{now - last_attempt:.1f}s" if last_attempt else "never",
+            f"{now - last_success:.1f}s" if last_success else "never",
+            f"{now - frame_ts:.1f}s" if frame_ts else "never",
+            frame_id,
+            failures,
+        )
+
     async def _broadcast_loop(self) -> None:
         while True:
             await asyncio.sleep(0.1)  # 10 Hz
+            self._log_solver_health(time.monotonic())
             if not self._clients:
                 continue
             try:
