@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,15 +16,14 @@ export function LocationPanel({ state }: Props) {
   const activeLatStr = activeLat !== null ? activeLat.toFixed(2) : "";
   const activeLonStr = activeLon !== null ? activeLon.toFixed(2) : "";
 
-  const [latInput, setLatInput] = useState(activeLatStr);
-  const [lonInput, setLonInput] = useState(activeLonStr);
-
-  // Sync inputs whenever the engine's active location changes — covers
-  // Stellarium connect/disconnect and manual save/clear.
-  useEffect(() => {
-    setLatInput(activeLatStr);
-    setLonInput(activeLonStr);
-  }, [activeLatStr, activeLonStr]);
+  const [draft, setDraft] = useState<{ lat: string; lon: string; baseLat: string; baseLon: string }>({
+    lat: activeLatStr, lon: activeLonStr, baseLat: activeLatStr, baseLon: activeLonStr,
+  });
+  const current = draft.baseLat === activeLatStr && draft.baseLon === activeLonStr;
+  const latInput = current ? draft.lat : activeLatStr;
+  const lonInput = current ? draft.lon : activeLonStr;
+  const setLatInput = (lat: string) => setDraft({ lat, lon: lonInput, baseLat: activeLatStr, baseLon: activeLonStr });
+  const setLonInput = (lon: string) => setDraft({ lat: latInput, lon, baseLat: activeLatStr, baseLon: activeLonStr });
 
   const lat = parseFloat(latInput);
   const lon = parseFloat(lonInput);

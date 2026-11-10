@@ -39,6 +39,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+from evf.config.manager import ConfigManager
 from evf.camera.client import CameraClient
 from evf.engine.frame_buffer import LatestFrame
 from evf.engine.pointing import PointingState
@@ -194,5 +195,3 @@ class TestFullPipeline:
         st.stop()
 
 
-# Avoid import-time ConfigManager at module level
-from evf.config.manager import ConfigManager

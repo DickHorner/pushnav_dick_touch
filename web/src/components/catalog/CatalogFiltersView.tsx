@@ -1,34 +1,10 @@
-import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { Equipment, LpTolerance, VisualReward } from "@/lib/catalogTypes";
+import { EQUIPMENT, LP, REWARD } from "./catalogFilterOptions";
+import type { CatalogFilterState } from "./catalogFilterOptions";
 
-const EQUIPMENT: { value: Equipment; label: string }[] = [
-  { value: "naked-eye", label: "Naked eye" },
-  { value: "binoculars", label: "Binoculars" },
-  { value: "small-telescope", label: "Small scope" },
-  { value: "medium-telescope", label: "Medium scope" },
-  { value: "large-telescope", label: "Large scope" },
-];
-
-const LP: { value: LpTolerance; label: string }[] = [
-  { value: "high", label: "High" },
-  { value: "medium", label: "Medium" },
-  { value: "low", label: "Low" },
-];
-
-const REWARD: { value: VisualReward; label: string }[] = [
-  { value: "high", label: "High" },
-  { value: "moderate", label: "Moderate" },
-  { value: "low", label: "Low" },
-];
-
-export interface CatalogFilterState {
-  equipment: Set<Equipment>;
-  lp: Set<LpTolerance>;
-  reward: Set<VisualReward>;
-}
 
 interface Props {
   value: CatalogFilterState;
@@ -138,27 +114,3 @@ function FilterDropdown<T extends string>({
   );
 }
 
-export function useCatalogFilters(): [
-  CatalogFilterState,
-  (next: CatalogFilterState) => void,
-] {
-  const [state, setStateRaw] = useState<CatalogFilterState>(() => {
-    const eq = JSON.parse(localStorage.getItem("pushnav.catalog.equipment") || "null");
-    const lp = JSON.parse(localStorage.getItem("pushnav.catalog.lp") || "null");
-    const rw = JSON.parse(localStorage.getItem("pushnav.catalog.reward") || "null");
-    return {
-      equipment: new Set(eq ?? EQUIPMENT.map((e) => e.value)) as Set<Equipment>,
-      lp: new Set(lp ?? LP.map((l) => l.value)) as Set<LpTolerance>,
-      reward: new Set(rw ?? REWARD.map((r) => r.value)) as Set<VisualReward>,
-    };
-  });
-  useEffect(() => {
-    localStorage.setItem(
-      "pushnav.catalog.equipment",
-      JSON.stringify([...state.equipment]),
-    );
-    localStorage.setItem("pushnav.catalog.lp", JSON.stringify([...state.lp]));
-    localStorage.setItem("pushnav.catalog.reward", JSON.stringify([...state.reward]));
-  }, [state]);
-  return [state, setStateRaw];
-}

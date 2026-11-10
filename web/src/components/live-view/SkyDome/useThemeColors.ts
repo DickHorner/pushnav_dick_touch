@@ -81,10 +81,11 @@ const DEFAULTS: ThemeColors = {
 };
 
 export function useThemeColors(): ThemeColors {
-  const [colors, setColors] = useState<ThemeColors>(DEFAULTS);
+  const [colors, setColors] = useState<ThemeColors>(() =>
+    typeof document === "undefined" ? DEFAULTS : readThemeColors()
+  );
 
-  useEffect(() => {
-    function read(): ThemeColors {
+  function readThemeColors(): ThemeColors {
       const mutedForeground = getCssColorAsHex("--muted-foreground");
       const foreground = getCssColorAsHex("--foreground");
       const accent = getCssColorAsHex("--accent");
@@ -103,9 +104,8 @@ export function useThemeColors(): ThemeColors {
       };
     }
 
-    setColors(read());
-
-    const observer = new MutationObserver(() => setColors(read()));
+  useEffect(() => {
+    const observer = new MutationObserver(() => setColors(readThemeColors()));
     observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["class"],

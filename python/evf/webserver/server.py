@@ -182,7 +182,7 @@ class WebServer:
         self._actions = actions
 
         self._clients: set[web.WebSocketResponse] = set()
-        self._mjpeg_clients: int = 0
+        self._mjpeg_clients: set[asyncio.Transport] = set()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._url: str | None = None
@@ -326,13 +326,22 @@ class WebServer:
         """
         if self._frame_buffer is None:
             return web.Response(status=503, text="No frame buffer")
-        if self._mjpeg_clients >= _MAX_MJPEG_CLIENTS:
+        # A closed transport can outlive its streaming handler while the
+        # handler sleeps waiting for the next camera frame.
+        self._mjpeg_clients = {
+            transport for transport in self._mjpeg_clients
+            if not transport.is_closing()
+        }
+        transport = request.transport
+        if transport is None:
+            raise web.HTTPServiceUnavailable(reason="Client disconnected")
+        if len(self._mjpeg_clients) >= _MAX_MJPEG_CLIENTS:
             logger.warning("MJPEG client limit reached (%d), rejecting", _MAX_MJPEG_CLIENTS)
             raise web.HTTPServiceUnavailable(reason="Too many MJPEG clients")
-        self._mjpeg_clients += 1
+        self._mjpeg_clients.add(transport)
         logger.debug(
             "MJPEG client connected (%d/%d)",
-            self._mjpeg_clients, _MAX_MJPEG_CLIENTS,
+            len(self._mjpeg_clients), _MAX_MJPEG_CLIENTS,
         )
         try:
             resp = web.StreamResponse(
@@ -377,10 +386,10 @@ class WebServer:
             except (asyncio.CancelledError, ConnectionError):
                 pass
         finally:
-            self._mjpeg_clients -= 1
+            self._mjpeg_clients.discard(transport)
             logger.debug(
                 "MJPEG client disconnected (%d/%d)",
-                self._mjpeg_clients, _MAX_MJPEG_CLIENTS,
+                len(self._mjpeg_clients), _MAX_MJPEG_CLIENTS,
             )
         return resp
 
