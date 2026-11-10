@@ -17,8 +17,13 @@
 
 """Tests for LX200 protocol formatters, parsers, and dispatch."""
 
+from unittest.mock import MagicMock
+
 import pytest
 
+from evf.engine.goto_target import GotoTarget
+from evf.engine.pointing import PointingState
+from evf.lx200.protocol import Lx200ClientState, Lx200Context, dispatch
 from evf.lx200 import protocol
 
 
@@ -109,12 +114,6 @@ class TestRoundTrip:
 
 
 # -- dispatch tests ----------------------------------------------------------
-
-from unittest.mock import MagicMock
-
-from evf.engine.goto_target import GotoTarget
-from evf.engine.pointing import PointingState
-from evf.lx200.protocol import Lx200ClientState, Lx200Context, dispatch
 
 
 def _make_ctx(pointing: PointingState, goto: GotoTarget | None = None,
