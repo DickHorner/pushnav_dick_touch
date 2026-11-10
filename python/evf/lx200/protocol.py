@@ -21,6 +21,19 @@ Pure functions - no sockets, fully unit-testable.
 See specs/start/SPEC_PROTOCOL_LX200.md for the full command table.
 """
 
+import logging
+import time
+from dataclasses import dataclass
+from typing import Callable
+
+from evf.engine.epoch import j2000_to_jnow, jnow_to_j2000
+from evf.engine.goto_target import GotoTarget
+from evf.engine.navigation import angular_separation
+from evf.engine.pointing import PointingState
+
+logger = logging.getLogger(__name__)
+
+
 # -- formatters --------------------------------------------------------------
 
 
@@ -102,19 +115,6 @@ def parse_dec_dms(arg: str) -> float:
 
 
 # -- types -------------------------------------------------------------------
-
-import logging
-import time
-from dataclasses import dataclass
-from typing import Callable
-
-from evf.engine.epoch import j2000_to_jnow, jnow_to_j2000
-from evf.engine.goto_target import GotoTarget
-from evf.engine.navigation import angular_separation
-from evf.engine.pointing import PointingState
-
-logger = logging.getLogger(__name__)
-
 
 @dataclass
 class Lx200ClientState:
