@@ -89,7 +89,7 @@ function CometArrow({
 
 export function NavOverlay({ state }: Props) {
   const nav = state.nav;
-  const [, setTick] = useState(0);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     if (!nav?.active) return;
@@ -198,7 +198,7 @@ export function NavOverlay({ state }: Props) {
   }
 
   // LOCKED — pulsing concentric rings + center dot + ON TARGET text
-  const t = performance.now() / 1000;
+  const t = tick * 0.05;
   const pulse = 0.7 + 0.3 * (0.5 + 0.5 * Math.sin((t * 2 * Math.PI) / 1.2));
   const alpha = pulse;
   const color = `rgba(255, 120, 80, ${alpha.toFixed(3)})`;
