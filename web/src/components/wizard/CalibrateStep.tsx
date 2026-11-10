@@ -3,7 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { api } from "@/lib/api";
 import type { EnginePayload } from "@/lib/types";
 
-export function CalibrateStep({ state: _ }: { state: EnginePayload }) {
+export function CalibrateStep({ state }: { state: EnginePayload }) {
+  void state;
   return (
     <Card>
       <CardHeader>
