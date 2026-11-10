@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
@@ -19,16 +19,11 @@ export function DebugPanel({ state }: Props) {
   const [captureMsg, setCaptureMsg] = useState<string>("");
   const [pending, setPending] = useState<Pending>(undefined);
 
-  // The truth source for what's active: optimistic if set, otherwise server.
+  // The server becomes authoritative as soon as it acknowledges the pending sample.
   const activeSample =
-    pending !== undefined ? pending : state.sample_active;
-
-  // Once the server agrees with our optimistic value, drop it.
-  useEffect(() => {
-    if (pending !== undefined && state.sample_active === pending) {
-      setPending(undefined);
-    }
-  }, [state.sample_active, pending]);
+    pending !== undefined && pending !== state.sample_active
+      ? pending
+      : state.sample_active;
 
   async function onCapture() {
     try {
