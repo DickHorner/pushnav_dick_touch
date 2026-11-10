@@ -115,6 +115,7 @@ export interface EnginePayload {
     source: "stellarium" | "manual" | null;
   };
   dev_mode: boolean;
+  sim_mode: boolean;
   min_matches: number;
   max_prob: number;
   sample_active: string | null;

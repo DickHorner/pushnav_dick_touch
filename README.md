@@ -182,6 +182,26 @@ Then open `http://localhost:5173/` in your browser. `--dev` also enables
 the in-app DebugPanel and the `/api/dev/*` endpoints (sample injection,
 frame capture).
 
+### Hardware-free simulator
+
+To debug the UI and MJPEG stream during the day, without a USB camera or
+plate solving, start PushNav with:
+
+```bash
+uv run python -m evf.main --simulate
+```
+
+The simulator immediately enters tracking, streams a synthetic 1280x720
+star field at 10 Hz (with a blinking green live indicator), and publishes
+simulated J2000 pointing coordinates.
+The **Simulator** panel lets you move RA/Dec in 0.1°, 1°, or 5° steps or
+center on the currently selected catalog target. The same MJPEG, WebSocket,
+GOTO, and planetarium-server paths remain active. The generated star pattern
+is illustrative, not an astronomical catalog or a real plate solve.
+
+`--simulate --no-window` also works with the Vite development server.
+Do not use `WEBVIEW_DEBUG=1` on Linux (see caveat below).
+
 ### Convenience scripts
 
 The helper scripts launch `evf.main`; the Python entry-point itself

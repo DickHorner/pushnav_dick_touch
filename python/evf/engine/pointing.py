@@ -39,7 +39,7 @@ class PointingSnapshot:
 
 
 class PointingState:
-    """Thread-safe pointing state. Updated only by the solver thread."""
+    """Thread-safe pointing state. Updated by the solver or simulator."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -66,7 +66,7 @@ class PointingState:
         matched_centroids: list | None = None,
         image_size: tuple[int, int] | None = None,
     ) -> None:
-        """Update with a new valid solve result. Called only by solver thread."""
+        """Update with a new valid pointing result from solver or simulator."""
         with self._lock:
             self._ra_j2000 = ra_j2000
             self._dec_j2000 = dec_j2000
