@@ -1,0 +1,6 @@
+# Existing module-level imports follow protocol/test section definitions.
+# Keep E402 enabled everywhere else until these files are reorganized.
+[lint.per-file-ignores]
+"python/evf/lx200/protocol.py" = ["E402"]
+"tests/test_lx200_protocol.py" = ["E402"]
+"tests/test_offline_full.py" = ["E402"]
