@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 
@@ -27,11 +27,9 @@ function appliedTimeLabel(offsetMin: number): string {
 
 export function TimeControl({ appliedOffsetMin, onApply }: Props) {
   // Local preview slider value — not committed until "Set".
-  const [preview, setPreview] = useState(appliedOffsetMin);
-
-  useEffect(() => {
-    setPreview(appliedOffsetMin);
-  }, [appliedOffsetMin]);
+  const [draft, setDraft] = useState({ base: appliedOffsetMin, preview: appliedOffsetMin });
+  const preview = draft.base === appliedOffsetMin ? draft.preview : appliedOffsetMin;
+  const setPreview = (next: number) => setDraft({ base: appliedOffsetMin, preview: next });
 
   const dirty = preview !== appliedOffsetMin;
 
