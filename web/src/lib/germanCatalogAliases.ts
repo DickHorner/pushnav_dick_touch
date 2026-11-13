@@ -1,0 +1,26 @@
+// Additional German observing names keyed by stable OpenNGC identifiers.
+// The astronomical positions and identifiers remain in OpenNGC.
+export const GERMAN_NGC_ALIASES: Record<string, string[]> = {
+  "NGC 224": ["Andromedagalaxie", "Andromedanebel"],
+  "NGC 598": ["Dreiecksgalaxie", "Dreiecksnebel"],
+  "NGC 1976": ["Orionnebel", "Großer Orionnebel"],
+  "NGC 1952": ["Krebsnebel"],
+  "NGC 6853": ["Hantelnebel"],
+  "NGC 6720": ["Ringnebel"],
+  "NGC 7293": ["Helixnebel"],
+  "NGC 7000": ["Nordamerikanebel"],
+  "NGC 1499": ["Kaliforniennebel"],
+  "NGC 7635": ["Blasennebel"],
+  "NGC 2237": ["Rosettennebel"],
+  "NGC 2264": ["Weihnachtsbaumhaufen"],
+  "NGC 6611": ["Adlernebel"],
+  "NGC 6523": ["Lagunennebel"],
+  "NGC 6514": ["Trifidnebel"],
+  "NGC 2392": ["Eskimo-Nebel"],
+  "NGC 6543": ["Katzenaugennebel"],
+  "NGC 7662": ["Blauer Schneeball"],
+  "NGC 869": ["Perseus-Doppelhaufen", "h Persei"],
+  "NGC 884": ["Perseus-Doppelhaufen", "chi Persei"],
+  "NGC 457": ["Eulenhaufen", "ET-Haufen"],
+  "NGC 2024": ["Flammennebel"],
+};
