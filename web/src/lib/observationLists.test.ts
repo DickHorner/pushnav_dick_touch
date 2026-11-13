@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseObservationLists, readObservationState, OBSERVATION_LISTS_KEY } from "./observationLists";
+import { parseObservationLists, readObservationState, resolveObservationTarget, OBSERVATION_LISTS_KEY } from "./observationLists";
 
 describe("parseObservationLists", () => {
   it("parses AstroHopper-style named groups and notes", () => {
@@ -42,5 +42,17 @@ describe("readObservationState", () => {
     localStorage.setItem(OBSERVATION_LISTS_KEY, JSON.stringify({ lists: [{ name: "Bad", targets: [], selectedIndex: 0 }], activeListIndex: 0 }));
     expect(readObservationState()).toEqual({ lists: [], activeListIndex: 0 });
     localStorage.removeItem(OBSERVATION_LISTS_KEY);
+  });
+});
+
+describe("German observing names", () => {
+  it("resolves German deep-sky names from the shared catalog", () => {
+    expect(resolveObservationTarget("Andromedagalaxie")?.id).toBe("NGC 224");
+    expect(resolveObservationTarget("Hantelnebel")?.id).toBe("NGC 6853");
+    expect(resolveObservationTarget("Großer Orionnebel")?.id).toBe("NGC 1976");
+  });
+
+  it("does not silently choose an ambiguous object", () => {
+    expect(resolveObservationTarget("Perseus-Doppelhaufen")).toBeNull();
   });
 });
