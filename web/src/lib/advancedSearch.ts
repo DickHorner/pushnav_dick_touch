@@ -8,7 +8,7 @@ const RESULT_CAP = 200;
 
 /** Lowercase + strip non-alphanumeric (so "M 31", "m31", "m-31" all collide). */
 export function normaliseQuery(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9α-ω]/gi, "");
+  return s.toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").replace(/[^a-z0-9α-ω]/gi, "");
 }
 
 interface Scored {
