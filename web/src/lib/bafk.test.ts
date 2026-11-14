@@ -29,8 +29,9 @@ describe("searchBafk", () => {
     expect(searchBafk(entries, "Saturnnebel")).toEqual([entries[1]]);
   });
 
-  it("handles German spelling and blank queries", () => {
-    expect(searchBafk(entries, "groesser")).toEqual([]);
+  it("transliterates umlauts and eszett while rejecting blank queries", () => {
+    const localized = { ...entries[0], description: "Größerer Nebel" };
+    expect(searchBafk([localized], "groesserer")).toEqual([localized]);
     expect(searchBafk(entries, "")).toEqual([]);
   });
 });
