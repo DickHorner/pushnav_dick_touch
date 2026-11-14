@@ -85,7 +85,7 @@ export function CatalogDetail({
   }
 
   async function handleSetTarget() {
-    if (raDeg === null || decDeg === null) return;
+    if (!input || raDeg === null || decDeg === null) return;
     if (input.kind === "solar" && input.object.id === "moon" && !location) return;
     setSetting(true); setSetOk(null);
     try {
