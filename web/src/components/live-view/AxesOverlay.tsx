@@ -11,7 +11,6 @@ interface Props {
 export function AxesOverlay({ state }: Props) {
   if (!["CALIBRATE", "WARMING_UP", "TRACKING"].includes(state.state)) return null;
   if (!state.pointing.valid) return null;
-  if (state.failures >= 3) return null;
   const axes = state.mount_axes;
   if (!axes) return null;
 
