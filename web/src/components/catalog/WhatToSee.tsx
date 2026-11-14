@@ -37,7 +37,10 @@ export function WhatToSee({ state, onSwitchToNavigation }: Props) {
   function setQuery(value: string) {
     setQueryRaw(value);
     if (value) localStorage.setItem(QUERY_KEY, value);
-    else localStorage.removeItem(QUERY_KEY);
+    else {
+      localStorage.removeItem(QUERY_KEY);
+      localStorage.removeItem("pushnav.catalog.advanced.query");
+    }
   }
   function setSubtab(next: "search" | "lists") {
     setTab(next);
@@ -51,6 +54,13 @@ export function WhatToSee({ state, onSwitchToNavigation }: Props) {
     setSelectedKey(item.key);
     localStorage.setItem(MATCH_KEY, item.key);
     setManual(null);
+  }
+
+  function handleTargetSet() {
+    setQuery("");
+    setSelectedKey(null);
+    localStorage.removeItem(MATCH_KEY);
+    onSwitchToNavigation();
   }
 
   const [selectedId, setSelectedIdState] = useState<string | null>(() => {
@@ -191,7 +201,7 @@ export function WhatToSee({ state, onSwitchToNavigation }: Props) {
             </div>
           ) : (
             <CatalogDetail input={detail} location={location} evalAt={evalAt}
-              onTargetSet={onSwitchToNavigation} />
+              onTargetSet={handleTargetSet} />
           )}
         </Card>
       </div>
