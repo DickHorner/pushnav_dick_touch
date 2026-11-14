@@ -60,6 +60,7 @@ _SOLVER_HEALTH_LOG_INTERVAL = 30.0
 _FOV_H = 8.86   # horizontal FOV in degrees
 _IMG_W = 1280
 _IMG_H = 720
+_SIM_MOUNT_AXES = {"up": [0.0, 1.0], "right": [-1.0, 0.0]}
 
 
 class EngineActions(Protocol):
@@ -810,6 +811,7 @@ class WebServer:
             "image_w": _IMG_W,
             "image_h": _IMG_H,
             "finder_rotation": 0.0 if self._sim_mode else self._config.finder_rotation,
+            "mount_axes": _SIM_MOUNT_AXES if self._sim_mode else self._config.mount_axes,
             "fov_h_deg": fov_h_deg,
             "has_calibration": (not self._sim_mode and self._config.has_calibration
                                 and self._config.mount_axes is not None),
@@ -886,10 +888,7 @@ class WebServer:
 
         # Camera pixel coordinates describe where the target appears in the image.
         # The big PUSH arrow instead shows how to move the physical mount.
-        axes = (
-            {"up": [0.0, 1.0], "right": [-1.0, 0.0]}
-            if self._sim_mode else self._config.mount_axes
-        )
+        axes = _SIM_MOUNT_AXES if self._sim_mode else self._config.mount_axes
         mount_right = mount_up = None
         direction_text = "Mount axes not calibrated"
         edge_x = edge_y = edge_angle = None
