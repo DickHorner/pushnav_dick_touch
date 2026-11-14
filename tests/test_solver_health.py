@@ -28,7 +28,6 @@ def _make_webserver(tmp_path):
 
 def test_solver_health_logs_frame_and_thread_activity(tmp_path, caplog):
     server, state, _, frames = _make_webserver(tmp_path)
-    caplog.clear()  # Ignore config-initialization logs; assert solver diagnostics only.
     state._state = EngineState.WARMING_UP
     frames.set(b"jpeg", 109.0, 42)
 
@@ -55,7 +54,6 @@ def test_solver_health_logs_frame_and_thread_activity(tmp_path, caplog):
 
 def test_solver_health_resets_on_success_and_tracking_stop(tmp_path, caplog):
     server, state, pointing, _ = _make_webserver(tmp_path)
-    caplog.clear()  # Ignore config-initialization logs; assert solver diagnostics only.
     state._state = EngineState.TRACKING
 
     with caplog.at_level(logging.WARNING, logger="evf.webserver.server"):
@@ -79,7 +77,6 @@ def test_solver_health_resets_on_success_and_tracking_stop(tmp_path, caplog):
 
 def test_solver_health_reports_dead_thread_and_missing_frames(tmp_path, caplog):
     server, state, _, _ = _make_webserver(tmp_path)
-    caplog.clear()  # Ignore config-initialization logs; assert solver diagnostics only.
     server._solver_activity = lambda: (False, 0.0)
     state._state = EngineState.TRACKING
 
