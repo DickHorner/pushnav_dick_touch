@@ -358,7 +358,7 @@ class WebServer:
             entries = solar_system_positions(datetime.now(timezone.utc), self._config.location)
             target = next((entry for entry in entries if entry["id"] == identifier), None)
             if target is None or target["ra_deg"] is None:
-                raise ValueError("Not an observable solar-system target")
+                raise ValueError("Solar-system target is not observable from Earth")
         except (KeyError, TypeError, ValueError) as exc:
             return web.Response(status=400, text=str(exc))
         return await self._handle_api(
