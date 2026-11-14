@@ -11,9 +11,12 @@ import {
 interface Props {
   value: ObservationState;
   onChange: (next: ObservationState) => boolean;
+  resolveTarget?: (name: string) => boolean;
 }
 
-export function ObservationListsTab({ value, onChange }: Props) {
+export function ObservationListsTab({
+  value, onChange, resolveTarget = (name) => resolveObservationTarget(name) !== null,
+}: Props) {
   const { lists, activeListIndex } = value;
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +25,7 @@ export function ObservationListsTab({ value, onChange }: Props) {
   const observed = active?.targets.filter((target) => target.done).length ?? 0;
   const hasNext = active?.targets.some(
     (target, index) => index !== active.selectedIndex
-      && !target.done && resolveObservationTarget(target.name) !== null,
+      && !target.done && resolveTarget(target.name),
   ) ?? false;
 
   function save(next: ObservationState): boolean {
@@ -83,7 +86,7 @@ export function ObservationListsTab({ value, onChange }: Props) {
     for (let offset = 1; offset <= active.targets.length; offset++) {
       const index = (active.selectedIndex + offset) % active.targets.length;
       const target = active.targets[index];
-      if (!target.done && resolveObservationTarget(target.name)) {
+      if (!target.done && resolveTarget(target.name)) {
         selectTarget(index);
         return;
       }
@@ -158,7 +161,7 @@ export function ObservationListsTab({ value, onChange }: Props) {
           <div className="flex-1 min-h-0 overflow-y-auto pushnav-scrollbar">
             <ul className="flex flex-col gap-1">
               {active.targets.map((target, index) => {
-                const found = resolveObservationTarget(target.name) !== null;
+                const found = resolveTarget(target.name);
                 return (
                   <li key={index} className={cn(
                     "flex items-center gap-2 rounded-md px-2 py-1",
