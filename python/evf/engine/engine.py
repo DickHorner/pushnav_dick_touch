@@ -493,6 +493,10 @@ class Engine:
                 solver_activity=lambda: self.solver_activity,
                 stellarium_object=lambda: self.stellarium_object,
                 camera_controls=lambda: self.camera_controls,
+                calibration_state=lambda: (
+                    self._solver_thread.calibration_status if self._solver_thread
+                    else {"phase": "up", "error": None}
+                ),
                 sync_state=lambda: {
                     "in_progress": self.sync_in_progress,
                     "candidates": [
