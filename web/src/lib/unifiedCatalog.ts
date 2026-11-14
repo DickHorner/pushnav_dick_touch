@@ -66,6 +66,18 @@ const MESSIER_NAMES: Record<string, string[]> = {
   m104: ["Sombrerogalaxie"],
 };
 
+const GERMAN_STAR_NAMES: Record<string, string[]> = {
+  vega: ["Wega"], arcturus: ["Arktur"], polaris: ["Polarstern", "Nordstern"],
+  sirius: ["Hundsstern"], procyon: ["Prokyon"],
+  betelgeuse: ["Beteigeuze"], rigel: ["Rigel"],
+};
+
+function starGermanNames(entry: StarEntry): string[] {
+  return [...new Set([entry.id, ...entry.aliases].flatMap(
+    (name) => GERMAN_STAR_NAMES[normaliseQuery(name)] ?? [],
+  ))];
+}
+
 function designationNames(labels: string[]): string[] {
   const names: string[] = [];
   for (const label of labels) {
@@ -75,7 +87,8 @@ function designationNames(labels: string[]): string[] {
 }
 
 function preferredName(entry: NgcEntry | StarEntry): string {
-  const german = entry.source === "ngc" ? GERMAN_NGC_ALIASES[entry.id]?.[0] : null;
+  const german = entry.source === "ngc"
+    ? GERMAN_NGC_ALIASES[entry.id]?.[0] : starGermanNames(entry)[0];
   return german ?? designationNames(entry.aliases)[0] ??
     entry.aliases.find((a) => /[a-z]{4}/i.test(a) && !/^\s*(NGC|IC|HIP|HD|HR|M)\s*\d/i.test(a))
     ?? entry.id;
@@ -148,7 +161,8 @@ export function buildCatalogIndex(
       key: entry.source + ":" + entry.id,
       source: entry.source === "ngc" ? "OpenNGC" : "HYG",
       title: preferredName(entry), subtitle: entry.id,
-      labels: [entry.id, ...entry.aliases, ...designationNames(entry.aliases), ...types],
+      labels: [entry.id, ...entry.aliases, ...designationNames(entry.aliases),
+        ...(entry.source === "star" ? starGermanNames(entry) : []), ...types],
       target: { kind: "advanced", entry },
     }));
   }
