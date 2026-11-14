@@ -17,7 +17,10 @@
 
 """Tests for POST /api/* action endpoints."""
 
+import io
+import json
 import threading
+from zipfile import ZIP_DEFLATED, ZipFile
 from unittest.mock import MagicMock
 
 import pytest
@@ -28,6 +31,7 @@ from evf.engine.frame_buffer import LatestFrame
 from evf.engine.goto_target import GotoTarget
 from evf.engine.pointing import PointingState
 from evf.engine.state import StateMachine
+from evf.webserver import bafk
 from evf.webserver.server import WebServer
 
 
@@ -172,3 +176,41 @@ async def test_settings_location_clear(server_and_actions):
         ) as resp:
             assert resp.status == 204
     actions.set_location.assert_called_once_with(None, None)
+
+
+@pytest.mark.asyncio
+async def test_bafk_local_import_search_and_images(server_and_actions, monkeypatch):
+    ws, _actions = server_and_actions
+    monkeypatch.setattr(bafk, "EXPECTED_OBJECTS", 1)
+    monkeypatch.setattr(bafk, "EXPECTED_IMAGES", 1)
+    entry = {
+        "id": "p004-00", "name": "M 31", "constellation": "And",
+        "ra_deg": 10.684, "dec_deg": 41.269,
+        "aperture": "FG", "filter": "--", "type": "Gx",
+        "page": 4, "description": "Andromeda", "images": ["p004-00.jpg"],
+    }
+    data = io.BytesIO()
+    with ZipFile(data, "w", ZIP_DEFLATED) as archive:
+        archive.writestr("catalog.json", json.dumps([entry]))
+        archive.writestr("atlas.pdf", b"%PDF-1.6")
+        archive.writestr("images/p004-00.jpg", b"sample image")
+    base = f"http://127.0.0.1:{ws._port}"
+    async with ClientSession() as session:
+        async with session.get(f"{base}/api/bafk") as response:
+            assert response.status == 200
+            assert await response.json() == []
+        async with session.post(
+            f"{base}/api/bafk/import", data=data.getvalue(),
+            headers={"Content-Type": "application/zip"},
+        ) as response:
+            assert response.status == 200
+            assert await response.json() == {"objects": 1, "images": 1}
+        async with session.get(f"{base}/api/bafk") as response:
+            assert response.status == 200
+            assert (await response.json())[0]["name"] == "M 31"
+        async with session.get(f"{base}/api/bafk/images/p004-00.jpg") as response:
+            assert response.status == 200
+            assert await response.read() == b"sample image"
+        async with session.get(f"{base}/api/bafk/atlas") as response:
+            assert response.status == 200
+            assert (await response.read()).startswith(b"%PDF-")

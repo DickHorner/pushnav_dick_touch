@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { altAzFromRaDec, parseDec, parseRA, riseSetTransitUtc } from "@/lib/astronomy";
 import { azimuthCompass } from "@/lib/catalogTypes";
+import type { BafkObject } from "@/lib/bafk";
 import type {
   CatalogObject, AdvancedEntry,
 } from "@/lib/catalogTypes";
@@ -12,7 +13,8 @@ import { NGC_TYPE_LABELS } from "@/lib/catalogTypes";
 
 type DetailInput =
   | { kind: "buddy";    object: CatalogObject }
-  | { kind: "advanced"; entry:  AdvancedEntry };
+  | { kind: "advanced"; entry:  AdvancedEntry }
+  | { kind: "bafk"; object: BafkObject };
 
 interface Props {
   input: DetailInput | null;
@@ -54,6 +56,9 @@ export function CatalogDetail({
     const dd = parseDec(input.object.declination);
     raDeg = rh !== null ? rh * 15 : null;
     decDeg = dd;
+  } else if (input.kind === "bafk") {
+    raDeg = input.object.ra_deg;
+    decDeg = input.object.dec_deg;
   } else {
     raDeg = input.entry.ra_deg;
     decDeg = input.entry.dec_deg;
@@ -104,6 +109,16 @@ export function CatalogDetail({
       {/* Header */}
       {input.kind === "buddy" ? (
         <BuddyHeader object={input.object} />
+      ) : input.kind === "bafk" ? (
+        <div className="flex items-baseline justify-between gap-2">
+          <div>
+            <div className="text-base text-foreground">{input.object.name}</div>
+            <div className="text-xs text-muted-foreground">
+              {input.object.constellation} · BAfK, Seite {input.object.page - 3}
+            </div>
+          </div>
+          <span className="text-xs text-muted-foreground">{input.object.type}</span>
+        </div>
       ) : (
         <AdvancedHeader entry={input.entry} />
       )}
@@ -113,8 +128,15 @@ export function CatalogDetail({
         {input.kind === "buddy"
           ? <BuddyFacts object={input.object} altDeg={altDeg} azDeg={azDeg}
                         rise={rise} transit={transit} set={set} />
-          : <AdvancedFacts entry={input.entry} altDeg={altDeg} azDeg={azDeg}
-                           rise={rise} transit={transit} set={set} />}
+          : input.kind === "bafk"
+            ? <>
+                <AdvancedFacts entry={{ source: "manual", ra_deg: input.object.ra_deg, dec_deg: input.object.dec_deg }}
+                               altDeg={altDeg} azDeg={azDeg} rise={rise} transit={transit} set={set} />
+                <Fact label="Öffnung" value={input.object.aperture || "—"} />
+                <Fact label="Filter" value={input.object.filter || "—"} />
+              </>
+            : <AdvancedFacts entry={input.entry} altDeg={altDeg} azDeg={azDeg}
+                             rise={rise} transit={transit} set={set} />}
       </div>
 
       {/* Action row */}
@@ -126,6 +148,13 @@ export function CatalogDetail({
         </Button>
         {altDeg !== null && altDeg < 0 && (
           <span className="text-xs text-muted-foreground">Below horizon</span>
+        )}
+        {input.kind === "bafk" && (
+          <a href={"/api/bafk/atlas#page=" + input.object.page} target="_blank"
+             rel="noopener noreferrer"
+             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+            BAfK-Seite öffnen <ExternalLink className="w-3 h-3" />
+          </a>
         )}
         {input.kind === "buddy" && (
           <a href={buddyUrl(input.object.id)} target="_blank"
@@ -140,6 +169,34 @@ export function CatalogDetail({
 
       {/* Description (Buddy only) */}
       {input.kind === "buddy" && <BuddyDescription object={input.object} />}
+      {input.kind === "bafk" && (
+        <div className="flex flex-col gap-2">
+          {input.object.images.length > 0 && (
+            <>
+              <div className="flex flex-wrap gap-2">
+                {input.object.images.map((image) => (
+                  <a key={image} href={"/api/bafk/images/" + image}
+                     target="_blank" rel="noopener noreferrer"
+                     title="Abbildung vergrößern">
+                    <img src={"/api/bafk/images/" + image} alt={"BAfK-Abbildung zu " + input.object.name}
+                         loading="lazy" className="max-h-48 rounded border border-border" />
+                  </a>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Abbildung aus dem BAfK. Bildurheber und Bildart bitte im Originalatlas prüfen;
+                Astrofotografien entsprechen nicht zwingend dem visuellen Okularanblick.
+              </p>
+            </>
+          )}
+          {input.object.description.split("").map((paragraph, index) => (
+            <p key={index} className="text-xs text-muted-foreground leading-relaxed">
+              {index > 0 && <strong className="text-foreground">Beobachtung: </strong>}
+              {paragraph}
+            </p>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

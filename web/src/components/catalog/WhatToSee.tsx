@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import objectsData from "@/data/objects.json";
+import { fetchBafk, uploadBafk, type BafkObject } from "@/lib/bafk";
 import type { AdvancedEntry, CatalogObject } from "@/lib/catalogTypes";
 import {
   OBSERVATION_LISTS_KEY, readObservationState, resolveObservationTarget,
   type ObservationState,
 } from "@/lib/observationLists";
 import type { EnginePayload } from "@/lib/types";
+import { BafkTab } from "./BafkTab";
 import { CatalogDetail } from "./CatalogDetail";
 import { LocationPanel } from "./LocationPanel";
 import { BuddyTab } from "./buddy/BuddyTab";
@@ -91,14 +93,41 @@ export function WhatToSee({ state, onSwitchToNavigation }: Props) {
   const activeTarget = activeList?.targets[activeList.selectedIndex] ?? null;
   const listEntry = activeTarget ? resolveObservationTarget(activeTarget.name) : null;
 
-  const [subtab, setSubtabState] = useState<"buddy" | "advanced" | "lists">(() => {
+  const [bafkObjects, setBafkObjects] = useState<BafkObject[] | null>(null);
+  const [bafkError, setBafkError] = useState<string | null>(null);
+  const [bafkSelectedId, setBafkSelectedId] = useState<string | null>(null);
+  const bafkSelected = bafkObjects?.find((entry) => entry.id === bafkSelectedId) ?? null;
+
+  const [subtab, setSubtabState] = useState<"buddy" | "advanced" | "lists" | "bafk">(() => {
     const saved = localStorage.getItem(SUBTAB_KEY);
-    return saved === "advanced" || saved === "lists" ? saved : "buddy";
+    return saved === "advanced" || saved === "lists" || saved === "bafk" ? saved : "buddy";
   });
-  const setSubtab = (v: "buddy" | "advanced" | "lists") => {
+  const setSubtab = (v: "buddy" | "advanced" | "lists" | "bafk") => {
     setSubtabState(v);
     localStorage.setItem(SUBTAB_KEY, v);
   };
+
+  useEffect(() => {
+    if (subtab !== "bafk") return;
+    let current = true;
+    fetchBafk().then((objects) => {
+      if (current) {
+        setBafkObjects(objects);
+        setBafkError(null);
+      }
+    }).catch((error: unknown) => {
+      if (current) setBafkError(error instanceof Error ? error.message : "BAfK could not load");
+    });
+    return () => { current = false; };
+  }, [subtab]);
+
+  async function importBafk(file: File) {
+    await uploadBafk(file);
+    const objects = await fetchBafk();
+    setBafkObjects(objects);
+    setBafkSelectedId(null);
+    setBafkError(null);
+  }
 
   return (
     <div className="flex flex-col gap-2 lg:h-full lg:min-h-0">
@@ -114,6 +143,18 @@ export function WhatToSee({ state, onSwitchToNavigation }: Props) {
           }
         >
           Stargazing Buddy
+        </button>
+        <button
+          type="button"
+          onClick={() => setSubtab("bafk")}
+          className={
+            "px-3 py-1 rounded-md text-xs " +
+            (subtab === "bafk"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground")
+          }
+        >
+          BAfK
         </button>
         <button
           type="button"
@@ -157,6 +198,15 @@ export function WhatToSee({ state, onSwitchToNavigation }: Props) {
             selected={advancedSelected}
             onSelect={setAdvancedSelected}
           />
+        ) : subtab === "bafk" ? (
+          <BafkTab
+            objects={bafkObjects ?? []}
+            loading={bafkObjects === null && bafkError === null}
+            loadError={bafkError}
+            selectedId={bafkSelectedId}
+            onSelect={setBafkSelectedId}
+            onImport={importBafk}
+          />
         ) : (
           <ObservationListsTab value={observation} onChange={saveObservation} />
         )}
@@ -175,7 +225,9 @@ export function WhatToSee({ state, onSwitchToNavigation }: Props) {
                   ? (selected ? { kind: "buddy", object: selected } : null)
                   : subtab === "advanced"
                     ? (advancedSelected ? { kind: "advanced", entry: advancedSelected } : null)
-                    : (listEntry ? { kind: "advanced", entry: listEntry } : null)
+                    : subtab === "bafk"
+                      ? (bafkSelected ? { kind: "bafk", object: bafkSelected } : null)
+                      : (listEntry ? { kind: "advanced", entry: listEntry } : null)
               }
               location={location}
               evalAt={evalAt}
