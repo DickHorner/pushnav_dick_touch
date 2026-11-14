@@ -3,6 +3,7 @@
 import logging
 import threading
 import time
+from unittest.mock import Mock
 
 from evf.config.manager import ConfigManager
 from evf.engine.frame_buffer import LatestFrame
@@ -124,3 +125,23 @@ def test_solver_thread_records_attempt_start(tmp_path):
     finally:
         thread.stop()
     assert not thread.running
+
+
+def test_audio_ignores_brief_failed_solves_but_announces_sustained_loss(tmp_path):
+    pointing = PointingState()
+    pointing.update(0.0, 0.0, 0.0, 10, 0.01)
+    audio = Mock()
+    thread = SolverThread(
+        None, LatestFrame(), pointing, StateMachine(),
+        ConfigManager(config_dir=tmp_path), audio=audio,
+    )
+
+    for _ in range(3):
+        thread._record_failure()
+    assert thread.consecutive_failures == 3
+    audio.on_failure_count_changed.assert_not_called()
+
+    pointing._last_success_timestamp = time.monotonic() - 3.0
+    thread._record_failure()
+    assert thread.consecutive_failures == 4
+    audio.on_failure_count_changed.assert_called_once_with(4)
