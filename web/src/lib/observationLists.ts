@@ -1,6 +1,7 @@
 import ngcData from "@/data/openngc.json";
 import starData from "@/data/hyg-bright.json";
 import { normaliseQuery } from "./advancedSearch";
+import { GERMAN_NGC_ALIASES } from "./germanCatalogAliases";
 import type { NgcEntry, StarEntry } from "./catalogTypes";
 
 export interface ObservationTarget {
@@ -99,7 +100,7 @@ export function readObservationState(): ObservationState {
 
 type CatalogEntry = NgcEntry | StarEntry;
 const ngcEntries: CatalogEntry[] = (ngcData as Omit<NgcEntry, "source">[])
-  .map((entry) => ({ ...entry, source: "ngc" as const }));
+  .map((entry) => ({ ...entry, aliases: [...entry.aliases, ...(GERMAN_NGC_ALIASES[entry.id] ?? [])], source: "ngc" as const }));
 const starEntries: CatalogEntry[] = (starData as Omit<StarEntry, "source">[])
   .map((entry) => ({ ...entry, source: "star" as const }));
 const byName = new Map<string, CatalogEntry | null>();

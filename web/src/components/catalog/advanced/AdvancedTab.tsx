@@ -6,12 +6,13 @@ import type {
 } from "@/lib/catalogTypes";
 import ngcData from "@/data/openngc.json";
 import starData from "@/data/hyg-bright.json";
+import { GERMAN_NGC_ALIASES } from "@/lib/germanCatalogAliases";
 import { SearchInput } from "./SearchInput";
 import { ResultsList } from "./ResultsList";
 import { ManualEntry } from "./ManualEntry";
 
 const ngcList: NgcEntry[] = (ngcData as Omit<NgcEntry, "source">[])
-  .map((e) => ({ ...e, source: "ngc" as const }));
+  .map((e) => ({ ...e, aliases: [...e.aliases, ...(GERMAN_NGC_ALIASES[e.id] ?? [])], source: "ngc" as const }));
 const starList: StarEntry[] = (starData as Omit<StarEntry, "source">[])
   .map((e) => ({ ...e, source: "star" as const }));
 const allEntries: (NgcEntry | StarEntry)[] = [...ngcList, ...starList];
