@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BafkObject } from "./bafk";
-import { buildCatalogIndex, resolveCatalogTarget, searchCatalog } from "./unifiedCatalog";
+import { buildCatalogIndex, buildCatalogResolver, searchCatalog } from "./unifiedCatalog";
 import { SOLAR_BODIES } from "./solarSystem";
 
 const bafk: BafkObject = {
@@ -43,8 +43,9 @@ describe("one shared sky search", () => {
   });
 
   it("resolves observing lists against the same catalog including planets", () => {
-    expect(resolveCatalogTarget("saturn", index)?.kind).toBe("solar");
-    expect(resolveCatalogTarget("M31", index)?.kind).toBe("bafk");
-    expect(resolveCatalogTarget("Unbekanntes Ziel", index)).toBeNull();
+    const resolve = buildCatalogResolver(index);
+    expect(resolve("saturn")?.kind).toBe("solar");
+    expect(resolve("M31")?.kind).toBe("bafk");
+    expect(resolve("Unbekanntes Ziel")).toBeNull();
   });
 });
