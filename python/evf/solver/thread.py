@@ -21,6 +21,7 @@ Per SPEC_ARCHITECTURE.md §4.2 and impl0.md §Phase 6.
 """
 
 import logging
+import math
 import threading
 import time
 
@@ -29,7 +30,7 @@ from evf.engine.audio import AudioAlert
 from evf.engine.frame_buffer import LatestFrame
 from evf.engine.pointing import PointingState
 from evf.engine.state import EngineState, InvalidTransitionError, StateMachine
-from evf.engine.navigation import angular_separation, sky_position_angle
+from evf.engine.navigation import angular_separation, camera_motion_axis
 from evf.solver.solver import PlateSolver
 from evf.solver.sync import apply_body_frame_sync
 
@@ -73,6 +74,9 @@ class SolverThread:
         self._cal_prev_ra: float = 0.0
         self._cal_prev_dec: float = 0.0
         self._cal_stable_since: float = 0.0  # monotonic timestamp
+        self._cal_phase = "up"
+        self._cal_up_axis: tuple[float, float] | None = None
+        self._cal_error: str | None = None
 
     def start(self) -> None:
         """Start tracking — transition to WARMING_UP and begin solving."""
@@ -114,8 +118,12 @@ class SolverThread:
         """Set or clear the body-frame sync vector applied to solve results."""
         self._sync_d_body = d_body
 
+    @property
+    def calibration_status(self) -> dict:
+        return {"phase": self._cal_phase, "error": self._cal_error}
+
     def start_calibrate(self, ref_ra: float, ref_dec: float, ref_roll: float) -> None:
-        """Enter CALIBRATE state and begin solving to detect finder rotation."""
+        """Learn camera-frame mount-up and mount-right from two deliberate moves."""
         self._cal_ref_ra = ref_ra
         self._cal_ref_dec = ref_dec
         self._cal_ref_roll = ref_roll
@@ -123,6 +131,10 @@ class SolverThread:
         self._cal_prev_ra = ref_ra
         self._cal_prev_dec = ref_dec
         self._cal_stable_since = 0.0
+        self._cal_phase = "up"
+        self._cal_up_axis = None
+        self._cal_error = None
+        self._config.mount_axes = None  # never reuse stale axes after a new sync
         self._stop_event.clear()
         with self._lock:
             self._consecutive_failures = 0
@@ -142,67 +154,68 @@ class SolverThread:
     _VALID_STATES = (EngineState.CALIBRATE, EngineState.WARMING_UP, EngineState.TRACKING)
     _AUDIO_FAIL_THRESHOLD = 3  # consecutive failures before audio alert
     _CALIBRATE_MIN_SEP = 0.5  # minimum angular separation (degrees) for calibration
+    _CALIBRATE_MAX_SEP = 15.0  # reject oversized moves with poor tangent-plane geometry
     _CALIBRATE_STABLE_TOL = 0.05  # max frame-to-frame drift (degrees) to count as stable
     _CALIBRATE_STABLE_SECS = 1.0  # seconds of stability required before accepting
 
     def _check_calibration(self, ra: float, dec: float, roll: float) -> bool:
-        """Check if the scope has moved enough and stabilized to compute finder rotation.
-
-        Waits for the scope to stop moving (consecutive solves within tolerance)
-        and then holds for _CALIBRATE_STABLE_SECS before computing. This handles
-        jittery motion and stiction on cheap telescope mounts.
-
-        Returns True if calibration is complete (or skipped) and we should
-        transition to WARMING_UP.
-        """
+        """Record settled up/right strokes; enable physical guidance only after both."""
         if self._cal_skip.is_set():
-            logger.info("Calibration skipped — using saved finder_rotation=%.1f",
-                        self._config.finder_rotation)
+            logger.info("Mount-axis calibration skipped; physical push arrows disabled")
             self._state_machine.transition(EngineState.WARMING_UP)
             return True
 
         sep = angular_separation(ra, dec, self._cal_ref_ra, self._cal_ref_dec)
+        if sep > self._CALIBRATE_MAX_SEP:
+            self._cal_error = "Movement too large; repeat this direction by 0.5° to 15°"
+            self._cal_ref_ra, self._cal_ref_dec, self._cal_ref_roll = ra, dec, roll
+            self._cal_prev_ra, self._cal_prev_dec = ra, dec
+            self._cal_stable_since = 0.0
+            return False
         if sep < self._CALIBRATE_MIN_SEP:
-            # Not moved enough yet — reset stability tracking
-            self._cal_prev_ra = ra
-            self._cal_prev_dec = dec
+            self._cal_prev_ra, self._cal_prev_dec = ra, dec
             self._cal_stable_since = 0.0
             return False
 
-        # Check frame-to-frame drift to detect when scope stops moving
         drift = angular_separation(ra, dec, self._cal_prev_ra, self._cal_prev_dec)
-        self._cal_prev_ra = ra
-        self._cal_prev_dec = dec
+        self._cal_prev_ra, self._cal_prev_dec = ra, dec
+        if drift > self._CALIBRATE_STABLE_TOL:
+            self._cal_stable_since = 0.0
+            return False
 
         now = time.monotonic()
-        if drift > self._CALIBRATE_STABLE_TOL:
-            # Still moving — reset stability timer
+        if self._cal_stable_since == 0.0:
+            self._cal_stable_since = now
+            return False
+        if now - self._cal_stable_since < self._CALIBRATE_STABLE_SECS:
+            return False
+
+        axis = camera_motion_axis(
+            self._cal_ref_ra, self._cal_ref_dec, self._cal_ref_roll, ra, dec,
+        )
+        if self._cal_phase == "up":
+            self._cal_up_axis = axis
+            self._cal_phase = "right"
+            self._cal_error = None
+            self._cal_ref_ra, self._cal_ref_dec, self._cal_ref_roll = ra, dec, roll
+            self._cal_stable_since = 0.0
+            logger.info("Mount-axis calibration: up learned; move scope right")
+            return False
+
+        up = self._cal_up_axis
+        if up is None:
+            raise RuntimeError("Right stroke received without an up calibration")
+        dot = up[0] * axis[0] + up[1] * axis[1]
+        if abs(dot) > 0.4:
+            self._cal_error = "Right stroke was not perpendicular to up; try moving right again"
+            self._cal_ref_ra, self._cal_ref_dec, self._cal_ref_roll = ra, dec, roll
             self._cal_stable_since = 0.0
             return False
 
-        # Scope is stable (within tolerance)
-        if self._cal_stable_since == 0.0:
-            self._cal_stable_since = now
-            logger.debug("Calibration: scope stable, waiting %.1fs...",
-                         self._CALIBRATE_STABLE_SECS)
-            return False
-
-        elapsed = now - self._cal_stable_since
-        if elapsed < self._CALIBRATE_STABLE_SECS:
-            return False
-
-        # Scope has been stable long enough — compute finder rotation
-        sky_pa = sky_position_angle(ra, dec, self._cal_ref_ra, self._cal_ref_dec)
-        camera_angle = (sky_pa - roll) % 360.0
-        # The old center is "behind" us (opposite to push direction)
-        finder_rotation = (camera_angle - 180.0) % 360.0
-
-        self._config.finder_rotation = finder_rotation
-        logger.info(
-            "Calibration complete: sep=%.2f° sky_pa=%.1f° roll=%.1f° "
-            "camera_angle=%.1f° finder_rotation=%.1f° (stable %.1fs)",
-            sep, sky_pa, roll, camera_angle, finder_rotation, elapsed,
-        )
+        self._config.mount_axes = {"up": list(up), "right": list(axis)}
+        self._config.finder_rotation = math.degrees(math.atan2(up[0], up[1])) % 360.0
+        self._cal_error = None
+        logger.info("Mount axes calibrated: up=%s right=%s", up, axis)
         self._state_machine.transition(EngineState.WARMING_UP)
         return True
 
