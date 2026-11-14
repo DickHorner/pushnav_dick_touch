@@ -1,37 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
-import objectsData from "@/data/objects.json";
 import { fetchBafk, uploadBafk, type BafkObject } from "@/lib/bafk";
-import type { AdvancedEntry, CatalogObject } from "@/lib/catalogTypes";
+import { fetchSolarBodies, SOLAR_BODIES, type SolarBody } from "@/lib/solarSystem";
 import {
-  OBSERVATION_LISTS_KEY, readObservationState, resolveObservationTarget,
-  type ObservationState,
+  buildCatalogIndex, buildCatalogResolver, recommendations, searchCatalog,
+  type CatalogTarget, type SearchItem,
+} from "@/lib/unifiedCatalog";
+import type { AdvancedEntry } from "@/lib/catalogTypes";
+import {
+  OBSERVATION_LISTS_KEY, readObservationState, type ObservationState,
 } from "@/lib/observationLists";
 import type { EnginePayload } from "@/lib/types";
-import { BafkTab } from "./BafkTab";
 import { CatalogDetail } from "./CatalogDetail";
 import { LocationPanel } from "./LocationPanel";
-import { BuddyTab } from "./buddy/BuddyTab";
-import { AdvancedTab } from "./advanced/AdvancedTab";
+import { UnifiedSearchTab } from "./UnifiedSearchTab";
 import { ObservationListsTab } from "./ObservationListsTab";
 
-const objects = objectsData as CatalogObject[];
 const SELECTED_KEY = "pushnav.catalog.selected";
+const QUERY_KEY = "pushnav.catalog.query";
+const MATCH_KEY = "pushnav.catalog.search.selected";
 const SUBTAB_KEY = "pushnav.catalog.subtab";
-const ADV_KEY = "pushnav.catalog.advanced.selected";
-
-function readAdvancedSelection(): AdvancedEntry | null {
-  try {
-    const raw = localStorage.getItem(ADV_KEY);
-    return raw ? (JSON.parse(raw) as AdvancedEntry) : null;
-  } catch {
-    return null;
-  }
-}
-function writeAdvancedSelection(e: AdvancedEntry | null) {
-  if (e === null) localStorage.removeItem(ADV_KEY);
-  else localStorage.setItem(ADV_KEY, JSON.stringify(e));
-}
 
 interface Props {
   state: EnginePayload;
@@ -39,200 +27,171 @@ interface Props {
 }
 
 export function WhatToSee({ state, onSwitchToNavigation }: Props) {
-  const [appliedOffsetMin, setAppliedOffsetMin] = useState(0);
+  const [tab, setTab] = useState<"search" | "lists">(
+    () => localStorage.getItem(SUBTAB_KEY) === "lists" ? "lists" : "search",
+  );
+  const [query, setQueryRaw] = useState(() =>
+    localStorage.getItem(QUERY_KEY)
+    ?? localStorage.getItem("pushnav.catalog.advanced.query") ?? "",
+  );
+  function setQuery(value: string) {
+    setQueryRaw(value);
+    if (value) localStorage.setItem(QUERY_KEY, value);
+    else localStorage.removeItem(QUERY_KEY);
+  }
+  function setSubtab(next: "search" | "lists") {
+    setTab(next);
+    localStorage.setItem(SUBTAB_KEY, next);
+  }
+
+  const [selectedKey, setSelectedKey] = useState<string | null>(
+    () => localStorage.getItem(MATCH_KEY),
+  );
+  function selectResult(item: SearchItem) {
+    setSelectedKey(item.key);
+    localStorage.setItem(MATCH_KEY, item.key);
+    setManual(null);
+  }
+
   const [selectedId, setSelectedIdState] = useState<string | null>(() => {
-    const raw = localStorage.getItem(SELECTED_KEY);
-    return raw && objects.some((o) => o.id === raw) ? raw : null;
+    const id = localStorage.getItem(SELECTED_KEY);
+    return recommendations.some((obj) => obj.id === id) ? id : null;
   });
-  const setSelectedId = (id: string | null) => {
+  function setSelectedId(id: string | null) {
     setSelectedIdState(id);
     if (id === null) localStorage.removeItem(SELECTED_KEY);
     else localStorage.setItem(SELECTED_KEY, id);
-  };
+    setManual(null);
+  }
 
+  const [manual, setManual] = useState<AdvancedEntry | null>(null);
   const [tickNow, setTickNow] = useState(() => Date.now());
+  const [appliedOffsetMin, setAppliedOffsetMin] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setTickNow(Date.now()), 60_000);
-    return () => clearInterval(id);
+    const interval = setInterval(() => setTickNow(Date.now()), 60_000);
+    return () => clearInterval(interval);
   }, []);
-
   const evalAt = useMemo(
     () => new Date(tickNow + appliedOffsetMin * 60_000),
     [tickNow, appliedOffsetMin],
   );
 
-  const location = useMemo(() => {
-    const loc = state.location;
-    if (!loc || loc.latitude === null || loc.longitude === null) return null;
-    return { latitude: loc.latitude, longitude: loc.longitude };
-  }, [state.location]);
-
-  const selected = useMemo(
-    () => objects.find((o) => o.id === selectedId) ?? null,
-    [selectedId],
+  const latitude = state.location?.latitude ?? null;
+  const longitude = state.location?.longitude ?? null;
+  const location = useMemo(
+    () => latitude !== null && longitude !== null ? { latitude, longitude } : null,
+    [latitude, longitude],
   );
 
-  const [advancedSelected, setAdvancedSelectedState] =
-    useState<AdvancedEntry | null>(() => readAdvancedSelection());
-  const setAdvancedSelected = (e: AdvancedEntry | null) => {
-    setAdvancedSelectedState(e);
-    writeAdvancedSelection(e);
-  };
+  const [bafkObjects, setBafkObjects] = useState<BafkObject[]>([]);
+  const [bafkError, setBafkError] = useState<string | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    fetchBafk().then((entries) => {
+      if (mounted) { setBafkObjects(entries); setBafkError(null); }
+    }).catch((error: unknown) => {
+      if (mounted) setBafkError(error instanceof Error ? error.message : "BAfK nicht verfügbar");
+    });
+    return () => { mounted = false; };
+  }, []);
+  async function importBafk(file: File) {
+    await uploadBafk(file);
+    const entries = await fetchBafk();
+    setBafkObjects(entries);
+    setBafkError(null);
+  }
+
+  const [solarBodies, setSolarBodies] = useState<SolarBody[]>(SOLAR_BODIES);
+  const [solarError, setSolarError] = useState<string | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    fetchSolarBodies(evalAt).then((entries) => {
+      if (mounted) { setSolarBodies(entries); setSolarError(null); }
+    }).catch((error: unknown) => {
+      if (mounted) setSolarError(error instanceof Error
+        ? error.message : "Ephemeriden nicht verfügbar");
+    });
+    return () => { mounted = false; };
+  }, [evalAt, location]);
+
+  const index = useMemo(() =>
+    buildCatalogIndex(bafkObjects, SOLAR_BODIES), [bafkObjects],
+  );
+  const results = useMemo(() => searchCatalog(query, index), [query, index]);
+  const resolveTarget = useMemo(() => buildCatalogResolver(index), [index]);
+  const isKnownTarget = (name: string) => resolveTarget(name) !== null;
 
   const [observation, setObservation] = useState(readObservationState);
-  const saveObservation = (next: ObservationState): boolean => {
+  function saveObservation(next: ObservationState): boolean {
     try {
       localStorage.setItem(OBSERVATION_LISTS_KEY, JSON.stringify(next));
       setObservation(next);
       return true;
-    } catch {
-      return false;
-    }
-  };
+    } catch { return false; }
+  }
   const activeList = observation.lists[observation.activeListIndex] ?? null;
   const activeTarget = activeList?.targets[activeList.selectedIndex] ?? null;
-  const listEntry = activeTarget ? resolveObservationTarget(activeTarget.name) : null;
+  const observedSelection = activeTarget ? resolveTarget(activeTarget.name) : null;
+  const recommendation = recommendations.find((obj) => obj.id === selectedId) ?? null;
+  const resultSelection = results.find((item) => item.key === selectedKey)?.target ?? null;
 
-  const [bafkObjects, setBafkObjects] = useState<BafkObject[] | null>(null);
-  const [bafkError, setBafkError] = useState<string | null>(null);
-  const [bafkSelectedId, setBafkSelectedId] = useState<string | null>(null);
-  const bafkSelected = bafkObjects?.find((entry) => entry.id === bafkSelectedId) ?? null;
-
-  const [subtab, setSubtabState] = useState<"buddy" | "advanced" | "lists" | "bafk">(() => {
-    const saved = localStorage.getItem(SUBTAB_KEY);
-    return saved === "advanced" || saved === "lists" || saved === "bafk" ? saved : "buddy";
-  });
-  const setSubtab = (v: "buddy" | "advanced" | "lists" | "bafk") => {
-    setSubtabState(v);
-    localStorage.setItem(SUBTAB_KEY, v);
-  };
-
-  useEffect(() => {
-    if (subtab !== "bafk") return;
-    let current = true;
-    fetchBafk().then((objects) => {
-      if (current) {
-        setBafkObjects(objects);
-        setBafkError(null);
-      }
-    }).catch((error: unknown) => {
-      if (current) setBafkError(error instanceof Error ? error.message : "BAfK could not load");
-    });
-    return () => { current = false; };
-  }, [subtab]);
-
-  async function importBafk(file: File) {
-    await uploadBafk(file);
-    const objects = await fetchBafk();
-    setBafkObjects(objects);
-    setBafkSelectedId(null);
-    setBafkError(null);
+  function currentSolarTarget(target: CatalogTarget | null): CatalogTarget | null {
+    if (target?.kind !== "solar") return target;
+    const object = solarBodies.find((body) => body.id === target.object.id) ?? target.object;
+    return { kind: "solar", object };
   }
+  const detail: CatalogTarget | null = tab === "lists"
+    ? currentSolarTarget(observedSelection)
+    : manual?.source === "manual"
+      ? { kind: "advanced", entry: manual }
+      : query.trim()
+        ? currentSolarTarget(resultSelection)
+        : recommendation ? { kind: "buddy", object: recommendation } : null;
 
   return (
     <div className="flex flex-col gap-2 lg:h-full lg:min-h-0">
-      <div className="flex items-center gap-1 self-start rounded-lg bg-muted/40 p-1">
-        <button
-          type="button"
-          onClick={() => setSubtab("buddy")}
-          className={
-            "px-3 py-1 rounded-md text-xs " +
-            (subtab === "buddy"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground")
-          }
-        >
-          Stargazing Buddy
+      <div className="flex gap-1 self-start rounded-lg bg-muted/40 p-1">
+        <button type="button" onClick={() => setSubtab("search")}
+          className={"px-3 py-1 rounded-md text-xs " +
+            (tab === "search" ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground")}>
+          Suche
         </button>
-        <button
-          type="button"
-          onClick={() => setSubtab("bafk")}
-          className={
-            "px-3 py-1 rounded-md text-xs " +
-            (subtab === "bafk"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground")
-          }
-        >
-          BAfK
-        </button>
-        <button
-          type="button"
-          onClick={() => setSubtab("advanced")}
-          className={
-            "px-3 py-1 rounded-md text-xs " +
-            (subtab === "advanced"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground")
-          }
-        >
-          Advanced
-        </button>
-        <button
-          type="button"
-          onClick={() => setSubtab("lists")}
-          className={
-            "px-3 py-1 rounded-md text-xs " +
-            (subtab === "lists"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground")
-          }
-        >
-          Observing Lists
+        <button type="button" onClick={() => setSubtab("lists")}
+          className={"px-3 py-1 rounded-md text-xs " +
+            (tab === "lists" ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground")}>
+          Beobachtungslisten
         </button>
       </div>
 
       <div className="flex flex-col lg:grid lg:grid-cols-3 lg:grid-rows-1 gap-3 lg:h-full lg:min-h-0 lg:overflow-hidden">
-        {subtab === "buddy" ? (
-          <BuddyTab
-            objects={objects}
-            location={location}
-            evalAt={evalAt}
-            appliedOffsetMin={appliedOffsetMin}
-            setAppliedOffsetMin={setAppliedOffsetMin}
-            selectedId={selectedId}
-            setSelectedId={setSelectedId}
-          />
-        ) : subtab === "advanced" ? (
-          <AdvancedTab
-            selected={advancedSelected}
-            onSelect={setAdvancedSelected}
-          />
-        ) : subtab === "bafk" ? (
-          <BafkTab
-            objects={bafkObjects ?? []}
-            loading={bafkObjects === null && bafkError === null}
-            loadError={bafkError}
-            selectedId={bafkSelectedId}
-            onSelect={setBafkSelectedId}
-            onImport={importBafk}
+        {tab === "search" ? (
+          <UnifiedSearchTab
+            query={query} onQueryChange={setQuery}
+            results={results} selectedKey={selectedKey} onSelect={selectResult}
+            recommendations={recommendations}
+            selectedRecommendationId={selectedId} onRecommendationSelect={setSelectedId}
+            location={location} evalAt={evalAt}
+            appliedOffsetMin={appliedOffsetMin} setAppliedOffsetMin={setAppliedOffsetMin}
+            bafkObjects={bafkObjects} onBafkImport={importBafk} bafkError={bafkError}
+            solarError={solarError} manual={manual} onManualSelect={setManual}
           />
         ) : (
-          <ObservationListsTab value={observation} onChange={saveObservation} />
+          <ObservationListsTab value={observation} onChange={saveObservation}
+            resolveTarget={isKnownTarget} />
         )}
 
         <Card className="lg:col-span-1 lg:min-h-0 lg:overflow-y-auto pushnav-scrollbar flex flex-col gap-3 px-4 py-3 text-sm">
           <LocationPanel state={state} />
           <div className="border-t border-border/60 -mx-4" />
-          {subtab === "lists" && activeTarget && !listEntry ? (
+          {tab === "lists" && activeTarget && !observedSelection ? (
             <div className="text-sm text-destructive">
-              {activeTarget.name} was not found in the catalog.
+              {activeTarget.name} wurde nicht eindeutig im Katalog gefunden.
             </div>
           ) : (
-            <CatalogDetail
-              input={
-                subtab === "buddy"
-                  ? (selected ? { kind: "buddy", object: selected } : null)
-                  : subtab === "advanced"
-                    ? (advancedSelected ? { kind: "advanced", entry: advancedSelected } : null)
-                    : subtab === "bafk"
-                      ? (bafkSelected ? { kind: "bafk", object: bafkSelected } : null)
-                      : (listEntry ? { kind: "advanced", entry: listEntry } : null)
-              }
-              location={location}
-              evalAt={evalAt}
-              onTargetSet={onSwitchToNavigation}
-            />
+            <CatalogDetail input={detail} location={location} evalAt={evalAt}
+              onTargetSet={onSwitchToNavigation} />
           )}
         </Card>
       </div>

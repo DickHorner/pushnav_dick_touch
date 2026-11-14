@@ -214,3 +214,50 @@ async def test_bafk_local_import_search_and_images(server_and_actions, monkeypat
         async with session.get(f"{base}/api/bafk/atlas") as response:
             assert response.status == 200
             assert (await response.read()).startswith(b"%PDF-")
+
+
+@pytest.mark.asyncio
+async def test_solar_system_search_and_goto(server_and_actions):
+    ws, actions = server_and_actions
+    ws._config.location = (52.5, 13.4)
+    base = f"http://127.0.0.1:{ws._port}"
+    async with ClientSession() as session:
+        async with session.get(
+            f"{base}/api/solar-system?at=2026-11-14T20:00:00Z",
+        ) as response:
+            assert response.status == 200
+            objects = {entry["id"]: entry for entry in await response.json()}
+            assert objects["saturn"]["ra_deg"] is not None
+            assert objects["moon"]["topocentric"] is True
+
+        async with session.post(
+            f"{base}/api/goto/solar-system", json={"id": "saturn"},
+        ) as response:
+            assert response.status == 204
+            ra, dec = actions.set_goto_target.call_args.args
+            assert 0 <= ra < 360
+            assert -90 <= dec <= 90
+
+        async with session.post(
+            f"{base}/api/goto/solar-system", json={"id": "earth"},
+        ) as response:
+            assert response.status == 400
+            assert "not observable" in (await response.text()).lower()
+        assert actions.set_goto_target.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_moon_requires_observing_location_and_invalid_time_rejected(server_and_actions):
+    ws, actions = server_and_actions
+    base = f"http://127.0.0.1:{ws._port}"
+    async with ClientSession() as session:
+        async with session.post(
+            f"{base}/api/goto/solar-system", json={"id": "moon"},
+        ) as response:
+            assert response.status == 400
+            assert "location" in (await response.text()).lower()
+        async with session.get(
+            f"{base}/api/solar-system?at=invalid",
+        ) as response:
+            assert response.status == 400
+    actions.set_goto_target.assert_not_called()

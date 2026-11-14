@@ -12,7 +12,7 @@ PushNav uses a live camera feed to continuously plate-solve and determine where 
 
 PushNav is built around hardware you already own. The laptop you use every day handles the plate-solving and runs the desktop UI. The only new pieces are a USB camera and lens. That deliberate choice shortens the path to first light. You don't need to source, flash, configure, or troubleshoot a dedicated computer. The full desktop UI sits in one familiar window you can drag around on a table next to your scope. The live frame, Sky View dome, What to See catalog, and the planetarium-app servers are all on the same screen. A Raspberry Pi 4 headless appliance is on the roadmap, for observers who want a small dedicated box.
 
-PushNav can also run completely standalone, without a separate planetarium app. Pick targets from its built-in What to See catalog. It offers a curated short-list of 161 hand-picked objects, a search across more than 20,000 stars and deep-sky objects, or a manual RA/Dec panel. Follow the push direction and watch your scope's pointing on the on-screen Sky View dome. The curated short-list is sourced from [Stargazing Buddy](https://stargazingbuddy.com/), a companion observing guide by the same author.
+PushNav can also run completely standalone, without a separate planetarium app. Pick targets from its built-in What to See catalog. It offers one search across the curated 161-object list, OpenNGC, HYG, a locally imported BAfK and the planets and Moon. Manual RA/Dec entry remains available. Follow the push direction and watch your scope's pointing on the on-screen Sky View dome. The curated short-list is sourced from [Stargazing Buddy](https://stargazingbuddy.com/), a companion observing guide by the same author.
 
 > **What is plate-solving?**
 >
@@ -72,7 +72,7 @@ Supports **Windows**, **macOS**, and **Linux**. The core app is written in Pytho
 - Near real-time plate solving (~20–140 ms per frame)
 - One time, simple calibration. No named stars, just point at any bright star and sync, then move the telescope UP and RIGHT by at least 0.5° each to teach PushNav the actual mount directions. The PUSH arrow then indicates physical telescope movement; the in-frame target marker still shows the target's camera-image position. If you skip mount-axis calibration, physical direction arrows are disabled.
 - GOTO navigation guidance for targets picked inside PushNav's **What to See** catalog or sent from your planetarium app (Stellarium, SkySafari, Stellarium Mobile, etc.)
-- Built-in **"What to See"** target picker with three modes: **Buddy** (161 hand-picked deep-sky objects filterable by equipment, light-pollution tolerance and visual reward), **Advanced** (fuzzy search across 12,522 NGC objects from OpenNGC and 8,825 bright stars from HYG), and **Manual coordinates** (HMS/DMS RA/Dec entry for anything not in the catalogs). Visibility (alt/az, rise/transit/set) is recomputed live for your location and time; one click promotes the selected object to the GOTO target. Below-horizon objects can't be set as a target.
+- Built-in **What to See** with just **Search** and **Observing Lists**. Search covers OpenNGC, HYG, the curated recommendations, a locally imported BAfK, and the planets and Moon; German names and catalog designations work together. Recommendations remain browsable when search is empty, and manual RA/Dec is available. A selected solar-system target is recalculated for the current time using ERFA. Moon targeting requires a location for parallax.
 - Works with **SkySafari**, **Stellarium Mobile**, **INDI**, and **ASCOM** clients over Wi-Fi via the LX200 protocol, with `:D#` slew-status so SkySafari's "Stop / GoTo" button transitions correctly
 - **Mobile web interface**: scan a QR code in the Settings panel to open a live mobile view; no app install required, phone and laptop just need to be on the same Wi-Fi
 - Live activity indicators in the app showing when Stellarium or LX200 clients are talking
@@ -82,7 +82,7 @@ Supports **Windows**, **macOS**, and **Linux**. The core app is written in Pytho
 - Saves calibration for quick re-sync
 - Works from urban light-polluted skies with the right camera/lens combo (see hardware guide)
 
-An optional **private BAfK observing atlas** can be imported into **What to See → BAfK**. A locally converted July 2020 PDF supplies 1,420 deep-sky objects, 23 stellar associations, observing advice and 829 illustrations, all stored in the user's configuration directory rather than the public repository. See [BAfK private import](docs/bafk-import.md). Solar-system ephemerides are not part of this atlas.
+An optional **private BAfK observing atlas** can be imported into **What to See → Suche → BAfK-Atlas importieren**. A locally converted July 2020 PDF supplies 1,420 deep-sky objects, 23 stellar associations, observing advice and 829 illustrations, all stored in the user's configuration directory rather than the public repository. See [BAfK private import](docs/bafk-import.md). Solar-system ephemerides are not part of this atlas.
 
 ## Prerequisites
 

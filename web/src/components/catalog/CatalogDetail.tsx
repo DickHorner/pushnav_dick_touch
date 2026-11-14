@@ -5,19 +5,14 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { altAzFromRaDec, parseDec, parseRA, riseSetTransitUtc } from "@/lib/astronomy";
 import { azimuthCompass } from "@/lib/catalogTypes";
-import type { BafkObject } from "@/lib/bafk";
+import type { CatalogTarget } from "@/lib/unifiedCatalog";
 import type {
   CatalogObject, AdvancedEntry,
 } from "@/lib/catalogTypes";
 import { NGC_TYPE_LABELS } from "@/lib/catalogTypes";
 
-type DetailInput =
-  | { kind: "buddy";    object: CatalogObject }
-  | { kind: "advanced"; entry:  AdvancedEntry }
-  | { kind: "bafk"; object: BafkObject };
-
 interface Props {
-  input: DetailInput | null;
+  input: CatalogTarget | null;
   location: { latitude: number; longitude: number } | null;
   evalAt: Date;
   onTargetSet?: () => void;
@@ -56,7 +51,7 @@ export function CatalogDetail({
     const dd = parseDec(input.object.declination);
     raDeg = rh !== null ? rh * 15 : null;
     decDeg = dd;
-  } else if (input.kind === "bafk") {
+  } else if (input.kind === "bafk" || input.kind === "solar") {
     raDeg = input.object.ra_deg;
     decDeg = input.object.dec_deg;
   } else {
@@ -90,10 +85,12 @@ export function CatalogDetail({
   }
 
   async function handleSetTarget() {
-    if (raDeg === null || decDeg === null) return;
+    if (!input || raDeg === null || decDeg === null) return;
+    if (input.kind === "solar" && input.object.id === "moon" && !location) return;
     setSetting(true); setSetOk(null);
     try {
-      await api.setGoto(raDeg, decDeg);
+      if (input.kind === "solar") await api.setSolarTarget(input.object.id);
+      else await api.setGoto(raDeg, decDeg);
       setSetOk("ok");
       onTargetSet?.();
     } catch {
@@ -109,6 +106,11 @@ export function CatalogDetail({
       {/* Header */}
       {input.kind === "buddy" ? (
         <BuddyHeader object={input.object} />
+      ) : input.kind === "solar" ? (
+        <div>
+          <div className="text-base text-foreground">{input.object.name}</div>
+          <div className="text-xs text-muted-foreground">Sonnensystem · bewegliches Ziel</div>
+        </div>
       ) : input.kind === "bafk" ? (
         <div className="flex items-baseline justify-between gap-2">
           <div>
@@ -128,6 +130,14 @@ export function CatalogDetail({
         {input.kind === "buddy"
           ? <BuddyFacts object={input.object} altDeg={altDeg} azDeg={azDeg}
                         rise={rise} transit={transit} set={set} />
+          : input.kind === "solar"
+            ? raDeg !== null && decDeg !== null
+              ? <AdvancedFacts entry={{ source: "manual", ra_deg: raDeg, dec_deg: decDeg }}
+                    altDeg={altDeg} azDeg={azDeg} rise={rise} transit={transit} set={set} />
+              : <span className="col-span-2 text-muted-foreground">
+                  {input.object.id === "earth" ? "Beobachterstandort, kein Ziel am Himmel."
+                    : "Position derzeit nicht verfügbar."}
+                </span>
           : input.kind === "bafk"
             ? <>
                 <AdvancedFacts entry={{ source: "manual", ra_deg: input.object.ra_deg, dec_deg: input.object.dec_deg }}
@@ -143,7 +153,8 @@ export function CatalogDetail({
       <div className="flex items-center gap-2">
         <Button size="sm" onClick={handleSetTarget}
                 disabled={setting || raDeg === null || decDeg === null
-                          || (altDeg !== null && altDeg < 0)}>
+                          || (altDeg !== null && altDeg < 0)
+                          || (input.kind === "solar" && input.object.id === "moon" && !location)}>
           {setting ? "Setting…" : "Set as target"}
         </Button>
         {altDeg !== null && altDeg < 0 && (
@@ -167,6 +178,15 @@ export function CatalogDetail({
         {setOk === "error" && <span className="text-xs text-destructive ml-auto">Failed</span>}
       </div>
 
+      {input.kind === "solar" && (
+        <p className="text-xs text-muted-foreground">
+          {input.object.id === "earth"
+            ? "Die Erde ist unser Beobachtungsstandort und kann nicht als Ziel gesetzt werden."
+            : input.object.id === "moon" && !location
+              ? "Für die genaue Mondposition bitte zuerst den Beobachtungsort festlegen (Parallaxe)."
+              : "Position für den gewählten Beobachtungszeitpunkt. Beim Setzen des Ziels wird die aktuelle Position neu berechnet."}
+        </p>
+      )}
       {/* Description (Buddy only) */}
       {input.kind === "buddy" && <BuddyDescription object={input.object} />}
       {input.kind === "bafk" && (
