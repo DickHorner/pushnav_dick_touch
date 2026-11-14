@@ -23,6 +23,7 @@ loop.
 """
 
 import asyncio
+import ipaddress
 import json
 import logging
 import math
@@ -39,6 +40,7 @@ from evf.engine.navigation import compute_navigation, edge_arrow_position
 from evf.engine.pointing import PointingState
 from evf.engine.state import EngineState, StateMachine
 from evf.network import local_ip
+from evf.webserver.bafk import IMAGE_NAME, import_bafk_package, read_bafk_catalog
 from evf.paths import sounds_dir, version_json, web_dist_dir
 
 logger = logging.getLogger(__name__)
@@ -186,6 +188,7 @@ class WebServer:
         self._actions = actions
 
         self._clients: set[web.WebSocketResponse] = set()
+        self._bafk_lock = asyncio.Lock()
         self._mjpeg_clients: set[asyncio.Transport] = set()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
@@ -238,9 +241,13 @@ class WebServer:
             self._url = f"http://{ip}:{port}"
             logger.info("Mobile web interface at %s", self._url)
 
-        app = web.Application(middlewares=[_security_headers_middleware])
+        app = web.Application(middlewares=[_security_headers_middleware], client_max_size=16 * 1024 * 1024)
         app.router.add_get("/", self._handle_index)
         app.router.add_get("/api/version", self._handle_version)
+        app.router.add_get("/api/bafk", self._api_bafk_catalog)
+        app.router.add_post("/api/bafk/import", self._api_bafk_import)
+        app.router.add_get("/api/bafk/images/{filename}", self._api_bafk_image)
+        app.router.add_get("/api/bafk/atlas", self._api_bafk_atlas)
         app.router.add_get("/ws", self._handle_ws)
         app.router.add_get("/frame.mjpg", self._handle_mjpeg)
         app.router.add_post("/api/wizard/advance", self._api_wizard_advance)
@@ -321,6 +328,70 @@ class WebServer:
             "version": data.get("app_version"),
             "protocol_version": data.get("protocol_version"),
         })
+
+    # -- BAfK personal atlas --------------------------------------------------
+
+    def _bafk_dir(self):
+        return self._config.path.parent / "bafk"
+
+    @staticmethod
+    def _bafk_lan_client(request: web.Request) -> bool:
+        try:
+            address = ipaddress.ip_address(request.remote or "")
+            return address.is_loopback or address.is_private
+        except ValueError:
+            return False
+
+    async def _api_bafk_catalog(self, request: web.Request) -> web.Response:
+        if not self._bafk_lan_client(request):
+            raise web.HTTPForbidden(reason="BAfK is only available on the local network")
+        try:
+            entries = await asyncio.to_thread(read_bafk_catalog, self._bafk_dir())
+        except (OSError, ValueError):
+            logger.exception("Could not load BAfK catalog")
+            raise web.HTTPInternalServerError(reason="Could not load BAfK catalog")
+        return web.json_response(entries)
+
+    async def _api_bafk_import(self, request: web.Request) -> web.Response:
+        try:
+            local = ipaddress.ip_address(request.remote or "").is_loopback
+        except ValueError:
+            local = False
+        if not local:
+            raise web.HTTPForbidden(reason="Import BAfK on the laptop running PushNav")
+        if request.content_type != "application/zip":
+            raise web.HTTPUnsupportedMediaType(reason="Expected a BAfK ZIP package")
+        async with self._bafk_lock:
+            try:
+                package = await request.read()
+                result = await asyncio.to_thread(import_bafk_package, package, self._bafk_dir())
+            except ValueError as exc:
+                return web.Response(status=400, text=str(exc))
+            except web.HTTPRequestEntityTooLarge:
+                raise
+            except Exception:
+                logger.exception("BAfK import failed")
+                raise web.HTTPInternalServerError(reason="Could not import BAfK package")
+        return web.json_response(result)
+
+    async def _api_bafk_image(self, request: web.Request) -> web.StreamResponse:
+        if not self._bafk_lan_client(request):
+            raise web.HTTPForbidden(reason="BAfK is only available on the local network")
+        filename = request.match_info["filename"]
+        if not IMAGE_NAME.fullmatch(filename):
+            raise web.HTTPNotFound()
+        path = self._bafk_dir() / "images" / filename
+        if not path.is_file():
+            raise web.HTTPNotFound()
+        return web.FileResponse(path)
+
+    async def _api_bafk_atlas(self, request: web.Request) -> web.StreamResponse:
+        if not self._bafk_lan_client(request):
+            raise web.HTTPForbidden(reason="BAfK is only available on the local network")
+        path = self._bafk_dir() / "atlas.pdf"
+        if not path.is_file():
+            raise web.HTTPNotFound()
+        return web.FileResponse(path, headers={"Content-Type": "application/pdf"})
 
     # -- MJPEG frame stream ---------------------------------------------------
 
