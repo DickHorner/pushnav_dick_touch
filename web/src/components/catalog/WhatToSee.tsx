@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { fetchBafk, uploadBafk, type BafkObject } from "@/lib/bafk";
 import { fetchSolarBodies, SOLAR_BODIES, type SolarBody } from "@/lib/solarSystem";
 import {
-  buildCatalogIndex, recommendations, resolveCatalogTarget, searchCatalog,
+  buildCatalogIndex, buildCatalogResolver, recommendations, searchCatalog,
   type CatalogTarget, type SearchItem,
 } from "@/lib/unifiedCatalog";
 import type { AdvancedEntry } from "@/lib/catalogTypes";
@@ -118,7 +118,8 @@ export function WhatToSee({ state, onSwitchToNavigation }: Props) {
     buildCatalogIndex(bafkObjects, SOLAR_BODIES), [bafkObjects],
   );
   const results = useMemo(() => searchCatalog(query, index), [query, index]);
-  const isKnownTarget = (name: string) => resolveCatalogTarget(name, index) !== null;
+  const resolveTarget = useMemo(() => buildCatalogResolver(index), [index]);
+  const isKnownTarget = (name: string) => resolveTarget(name) !== null;
 
   const [observation, setObservation] = useState(readObservationState);
   function saveObservation(next: ObservationState): boolean {
@@ -130,7 +131,7 @@ export function WhatToSee({ state, onSwitchToNavigation }: Props) {
   }
   const activeList = observation.lists[observation.activeListIndex] ?? null;
   const activeTarget = activeList?.targets[activeList.selectedIndex] ?? null;
-  const observedSelection = activeTarget ? resolveCatalogTarget(activeTarget.name, index) : null;
+  const observedSelection = activeTarget ? resolveTarget(activeTarget.name) : null;
   const recommendation = recommendations.find((obj) => obj.id === selectedId) ?? null;
   const resultSelection = results.find((item) => item.key === selectedKey)?.target ?? null;
 
