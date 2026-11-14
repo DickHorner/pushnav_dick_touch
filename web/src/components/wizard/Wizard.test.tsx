@@ -39,6 +39,18 @@ describe("Wizard", () => {
     ).toBeInTheDocument();
   });
 
+  it("prompts for physical up and then right motion during calibration", () => {
+    const up = { ...base, state: "CALIBRATE" as const,
+      calibration: { phase: "up" as const, error: null } };
+    const view = render(<Wizard state={up} />);
+    expect(screen.getByText(/Step 3a — Move UP/)).toBeInTheDocument();
+    view.rerender(<Wizard state={{ ...up,
+      calibration: { phase: "right", error: "Try moving right again" },
+    }} />);
+    expect(screen.getByText(/Step 3b — Move RIGHT/)).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(/Try moving right again/);
+  });
+
   it("renders LOCK badge when tracking is valid", () => {
     const s = { ...base, state: "TRACKING" as const,
       pointing: { ...base.pointing, valid: true, solve_age_s: 0.2 } };
