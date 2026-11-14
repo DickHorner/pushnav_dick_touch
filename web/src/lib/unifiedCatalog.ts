@@ -192,3 +192,11 @@ export function searchCatalog(query: string, entries: IndexedItem[]): SearchItem
   );
   return scores.slice(0, 200).map(({ item }) => item);
 }
+
+/** Exact, unambiguous lookup shared by pasted observing lists and the main search. */
+export function resolveCatalogTarget(name: string, entries: IndexedItem[]): CatalogTarget | null {
+  const key = normaliseQuery(name);
+  if (!key) return null;
+  const matches = entries.filter((item) => item.terms.includes(key));
+  return matches.length === 1 ? matches[0].target : null;
+}
