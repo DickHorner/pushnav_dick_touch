@@ -177,9 +177,10 @@ export function CatalogDetail({
                 {input.object.images.map((image) => (
                   <a key={image} href={"/api/bafk/images/" + image}
                      target="_blank" rel="noopener noreferrer"
-                     title="Abbildung vergrößern">
+                     title="Abbildung vergrößern"
+                     className="inline-block overflow-hidden rounded border border-border bg-[#ff2020]">
                     <img src={"/api/bafk/images/" + image} alt={"BAfK-Abbildung zu " + input.object.name}
-                         loading="lazy" className="max-h-48 rounded border border-border" />
+                         loading="lazy" className="block max-h-48 grayscale invert contrast-125 mix-blend-multiply" />
                   </a>
                 ))}
               </div>
