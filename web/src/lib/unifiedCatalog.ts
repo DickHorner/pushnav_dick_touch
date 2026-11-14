@@ -207,10 +207,14 @@ export function searchCatalog(query: string, entries: IndexedItem[]): SearchItem
   return scores.slice(0, 200).map(({ item }) => item);
 }
 
-/** Exact, unambiguous lookup shared by pasted observing lists and the main search. */
-export function resolveCatalogTarget(name: string, entries: IndexedItem[]): CatalogTarget | null {
-  const key = normaliseQuery(name);
-  if (!key) return null;
-  const matches = entries.filter((item) => item.terms.includes(key));
-  return matches.length === 1 ? matches[0].target : null;
+/** Build the same unambiguous name lookup used by the observation lists, once per catalog. */
+export function buildCatalogResolver(entries: IndexedItem[]): (name: string) => CatalogTarget | null {
+  const byName = new Map<string, CatalogTarget | null>();
+  for (const item of entries) {
+    for (const term of item.terms) {
+      if (!byName.has(term)) byName.set(term, item.target);
+      else if (byName.get(term) !== item.target) byName.set(term, null);
+    }
+  }
+  return (name) => byName.get(normaliseQuery(name)) ?? null;
 }
