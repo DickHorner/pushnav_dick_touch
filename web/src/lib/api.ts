@@ -26,6 +26,7 @@ export const api = {
   clearGoto: () => post("/api/goto/clear"),
   setGoto: (ra_deg: number, dec_deg: number) =>
     post("/api/goto/set", { ra_deg, dec_deg }),
+  setSolarTarget: (id: string) => post("/api/goto/solar-system", { id }),
   setSettings: (s: {
     audio_enabled?: boolean;
     location?: { latitude: number; longitude: number } | null;
