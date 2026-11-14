@@ -704,7 +704,8 @@ class WebServer:
             "image_h": _IMG_H,
             "finder_rotation": 0.0 if self._sim_mode else self._config.finder_rotation,
             "fov_h_deg": fov_h_deg,
-            "has_calibration": not self._sim_mode and self._config.has_calibration,
+            "has_calibration": (not self._sim_mode and self._config.has_calibration
+                                and self._config.mount_axes is not None),
             "image_size": list(snap.image_size) if snap.valid and snap.image_size else None,
             "controls": controls or [],
             "sync": sync_blk,
