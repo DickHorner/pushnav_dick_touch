@@ -4,20 +4,25 @@ import { api } from "@/lib/api";
 import type { EnginePayload } from "@/lib/types";
 
 export function CalibrateStep({ state }: { state: EnginePayload }) {
-  void state;
+  const right = state.calibration?.phase === "right";
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Step 3 — Calibrate</CardTitle>
+        <CardTitle>{right ? "Step 3b — Move RIGHT" : "Step 3a — Move UP"}</CardTitle>
         <CardDescription>
-          Push the telescope UP (increase altitude) by at least 0.5° and hold
-          steady. Calibration completes automatically once movement stabilises
-          — this detects the camera's rotation relative to the mount.
+          {right
+            ? "Now push the telescope to the RIGHT along its horizontal axis by at least 0.5° (do not change altitude). Hold still until PushNav confirms both mount directions."
+            : "Push the telescope UP (increase altitude) by at least 0.5°, without turning it left or right. Hold steady until PushNav asks for the RIGHT movement."}
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-2">
+        {state.calibration?.error && (
+          <p className="text-xs text-destructive" role="alert">
+            {state.calibration.error}
+          </p>
+        )}
         <Button variant="outline" onClick={() => api.wizardAdvance()}>
-          Skip calibration
+          Skip (no physical push arrows)
         </Button>
       </CardContent>
     </Card>
