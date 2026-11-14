@@ -28,6 +28,7 @@ import json
 import logging
 import math
 import threading
+from datetime import datetime, timezone
 import time
 from typing import Callable, Protocol
 
@@ -39,6 +40,7 @@ from evf.engine.goto_target import GotoTarget
 from evf.engine.navigation import compute_navigation, edge_arrow_position, mount_deltas
 from evf.engine.pointing import PointingState
 from evf.engine.state import EngineState, StateMachine
+from evf.engine.solar_system import solar_system_positions
 from evf.network import local_ip
 from evf.webserver.bafk import IMAGE_NAME, import_bafk_package, read_bafk_catalog
 from evf.paths import sounds_dir, version_json, web_dist_dir
@@ -246,6 +248,7 @@ class WebServer:
         app = web.Application(middlewares=[_security_headers_middleware], client_max_size=16 * 1024 * 1024)
         app.router.add_get("/", self._handle_index)
         app.router.add_get("/api/version", self._handle_version)
+        app.router.add_get("/api/solar-system", self._api_solar_system)
         app.router.add_get("/api/bafk", self._api_bafk_catalog)
         app.router.add_post("/api/bafk/import", self._api_bafk_import)
         app.router.add_get("/api/bafk/images/{filename}", self._api_bafk_image)
@@ -260,6 +263,7 @@ class WebServer:
         app.router.add_post("/api/control", self._api_set_control)
         app.router.add_post("/api/goto/clear", self._api_goto_clear)
         app.router.add_post("/api/goto/set", self._api_goto_set)
+        app.router.add_post("/api/goto/solar-system", self._api_goto_solar_system)
         app.router.add_post("/api/settings", self._api_settings)
         app.router.add_post("/api/dev/inject-sample", self._api_dev_inject_sample)
         app.router.add_post("/api/dev/sim/move", self._api_sim_move)
@@ -330,6 +334,38 @@ class WebServer:
             "version": data.get("app_version"),
             "protocol_version": data.get("protocol_version"),
         })
+
+    async def _api_solar_system(self, request: web.Request) -> web.Response:
+        value = request.query.get("at")
+        try:
+            if value is not None and len(value) > 40:
+                raise ValueError("Observation time is too long")
+            at = (datetime.fromisoformat(value.replace("Z", "+00:00"))
+                  if value else datetime.now(timezone.utc))
+            entries = solar_system_positions(at, self._config.location)
+        except (TypeError, ValueError) as exc:
+            return web.Response(status=400, text=str(exc))
+        return web.json_response(entries)
+
+    async def _api_goto_solar_system(self, request: web.Request) -> web.Response:
+        try:
+            body = await request.json()
+            identifier = body["id"]
+            if not isinstance(identifier, str):
+                raise ValueError("Invalid solar-system target")
+            if identifier == "moon" and self._config.location is None:
+                raise ValueError("Set the observing location before targeting the Moon")
+            entries = solar_system_positions(datetime.now(timezone.utc), self._config.location)
+            target = next((entry for entry in entries if entry["id"] == identifier), None)
+            if target is None or target["ra_deg"] is None:
+                raise ValueError("Not an observable solar-system target")
+        except (KeyError, TypeError, ValueError) as exc:
+            return web.Response(status=400, text=str(exc))
+        return await self._handle_api(
+            request, lambda: self._actions.set_goto_target(
+                target["ra_deg"], target["dec_deg"],
+            ),
+        )
 
     # -- BAfK personal atlas --------------------------------------------------
 
