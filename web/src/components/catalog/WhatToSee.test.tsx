@@ -32,9 +32,11 @@ describe("unified observing catalog", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     localStorage.setItem("pushnav.catalog.query", "Saturn");
+    localStorage.setItem("pushnav.catalog.advanced.query", "Old query");
     const onSwitchToNavigation = vi.fn();
 
-    render(<WhatToSee state={state} onSwitchToNavigation={onSwitchToNavigation} />);
+    const view = render(<WhatToSee state={state} onSwitchToNavigation={onSwitchToNavigation} />);
+    expect(screen.getByPlaceholderText(/Alle Himmelsobjekte suchen/)).toHaveValue("Saturn");
 
     expect(screen.getByRole("button", { name: "Suche" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Beobachtungslisten" })).toBeInTheDocument();
@@ -54,5 +56,14 @@ describe("unified observing catalog", () => {
       );
       expect(onSwitchToNavigation).toHaveBeenCalledOnce();
     });
+
+    expect(screen.getByPlaceholderText(/Alle Himmelsobjekte suchen/)).toHaveValue("");
+    expect(localStorage.getItem("pushnav.catalog.query")).toBeNull();
+    expect(localStorage.getItem("pushnav.catalog.advanced.query")).toBeNull();
+    expect(localStorage.getItem("pushnav.catalog.search.selected")).toBeNull();
+
+    view.unmount();
+    render(<WhatToSee state={state} onSwitchToNavigation={onSwitchToNavigation} />);
+    expect(screen.getByPlaceholderText(/Alle Himmelsobjekte suchen/)).toHaveValue("");
   });
 });
