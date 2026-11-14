@@ -85,13 +85,13 @@ class ConfigManager:
                 else:
                     # Merge in any missing keys from defaults
                     self._data = _merge_defaults(DEFAULT_CONFIG, self._data)
-                logger.info("Loaded config from %s", self._path)
+                logger.debug("Loaded config from %s", self._path)
             except (json.JSONDecodeError, OSError) as exc:
                 logger.error("Failed to read config (%s) — using defaults", exc)
                 self._data = _deep_copy(DEFAULT_CONFIG)
                 self._dirty = True
         else:
-            logger.info("No config file found — creating defaults at %s", self._path)
+            logger.debug("No config file found — creating defaults at %s", self._path)
             self._data = _deep_copy(DEFAULT_CONFIG)
             self._dirty = True
         if self._dirty:
