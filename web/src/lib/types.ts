@@ -34,6 +34,8 @@ export interface NavData {
   edge_x: number | null;
   edge_y: number | null;
   edge_angle_deg: number | null;
+  mount_right_deg: number | null;
+  mount_up_deg: number | null;
 }
 
 export interface ControlDescriptor {
@@ -104,6 +106,7 @@ export interface EnginePayload {
   image_size: [number, number] | null;
   controls: ControlDescriptor[];
   sync: SyncBlock;
+  calibration?: { phase: "up" | "right"; error: string | null };
   stellarium: ActivityLine;
   lx200: ActivityLine;
   webserver: { url: string | null };
