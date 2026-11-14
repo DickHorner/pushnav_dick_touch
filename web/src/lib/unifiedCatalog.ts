@@ -72,8 +72,8 @@ const GERMAN_STAR_NAMES: Record<string, string[]> = {
   betelgeuse: ["Beteigeuze"], rigel: ["Rigel"],
 };
 
-function starGermanNames(entry: StarEntry): string[] {
-  return [...new Set([entry.id, ...entry.aliases].flatMap(
+function starGermanNames(labels: string[]): string[] {
+  return [...new Set(labels.flatMap(
     (name) => GERMAN_STAR_NAMES[normaliseQuery(name)] ?? [],
   ))];
 }
@@ -88,7 +88,7 @@ function designationNames(labels: string[]): string[] {
 
 function preferredName(entry: NgcEntry | StarEntry): string {
   const german = entry.source === "ngc"
-    ? GERMAN_NGC_ALIASES[entry.id]?.[0] : starGermanNames(entry)[0];
+    ? GERMAN_NGC_ALIASES[entry.id]?.[0] : starGermanNames([entry.id, ...entry.aliases])[0];
   return german ?? designationNames(entry.aliases)[0] ??
     entry.aliases.find((a) => /[a-z]{4}/i.test(a) && !/^\s*(NGC|IC|HIP|HD|HR|M)\s*\d/i.test(a))
     ?? entry.id;
@@ -123,7 +123,8 @@ export function buildCatalogIndex(
   for (const object of bafk) {
     const matched = byAlias.get(normaliseQuery(object.name));
     const aliases = matched
-      ? [matched.id, ...matched.aliases, ...designationNames(matched.aliases)]
+      ? [matched.id, ...matched.aliases, ...designationNames(matched.aliases),
+        ...(matched.source === "star" ? starGermanNames([matched.id, ...matched.aliases]) : [])]
       : [];
     if (matched) covered.add(matched.source + ":" + matched.id);
     results.push(indexed({
@@ -144,8 +145,9 @@ export function buildCatalogIndex(
       key: "buddy:" + object.id, source: "Empfehlung",
       title: object.name, subtitle: object.designation,
       labels: [
-        ...labels, ...designationNames(labels),
+        ...labels, ...designationNames(labels), ...starGermanNames(labels),
         ...(matched ? [matched.id, ...matched.aliases] : []),
+        ...(matched?.source === "star" ? starGermanNames([matched.id, ...matched.aliases]) : []),
       ],
       description: object.description,
       target: { kind: "buddy", object },
@@ -162,7 +164,7 @@ export function buildCatalogIndex(
       source: entry.source === "ngc" ? "OpenNGC" : "HYG",
       title: preferredName(entry), subtitle: entry.id,
       labels: [entry.id, ...entry.aliases, ...designationNames(entry.aliases),
-        ...(entry.source === "star" ? starGermanNames(entry) : []), ...types],
+        ...(entry.source === "star" ? starGermanNames([entry.id, ...entry.aliases]) : []), ...types],
       target: { kind: "advanced", entry },
     }));
   }
