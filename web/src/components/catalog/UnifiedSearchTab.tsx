@@ -100,10 +100,10 @@ export function UnifiedSearchTab({
                         item.key === selectedKey && "bg-primary/15")}>
                       <span className="mr-2 inline-block text-[10px] uppercase tracking-wide text-muted-foreground">
                         {item.source}
-                      </span>
+                      </span>{" "}
                       <span className="font-medium">{item.title}</span>
                       {item.subtitle && (
-                        <span className="ml-2 text-muted-foreground">{item.subtitle}</span>
+                        <>{" "}<span className="ml-2 text-muted-foreground">{item.subtitle}</span></>
                       )}
                     </button>
                   </li>
