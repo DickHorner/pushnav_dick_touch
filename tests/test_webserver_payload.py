@@ -86,3 +86,13 @@ def test_push_arrow_uses_mount_axes_not_target_camera_pixel(tmp_path):
     assert uncalibrated["edge_angle_deg"] is None
     assert uncalibrated["mount_right_deg"] is None
     assert uncalibrated["direction_text"] == "Mount axes not calibrated"
+
+
+def test_previous_calibration_requires_saved_mount_axes(tmp_path):
+    cfg = ConfigManager(config_dir=tmp_path / "evf-config")
+    cfg.sync_d_body = [0.0, 0.0, 1.0]
+    server = WebServer(PointingState(), StateMachine(), GotoTarget(), cfg)
+    assert not server._build_payload()["has_calibration"]
+
+    cfg.mount_axes = {"up": [0.0, 1.0], "right": [-1.0, 0.0]}
+    assert server._build_payload()["has_calibration"]
