@@ -76,11 +76,12 @@ export function WhatToSee({ state, onSwitchToNavigation }: Props) {
     [tickNow, appliedOffsetMin],
   );
 
-  const location = useMemo(() => {
-    const loc = state.location;
-    return loc?.latitude != null && loc.longitude != null
-      ? { latitude: loc.latitude, longitude: loc.longitude } : null;
-  }, [state.location]);
+  const latitude = state.location?.latitude ?? null;
+  const longitude = state.location?.longitude ?? null;
+  const location = useMemo(
+    () => latitude !== null && longitude !== null ? { latitude, longitude } : null,
+    [latitude, longitude],
+  );
 
   const [bafkObjects, setBafkObjects] = useState<BafkObject[]>([]);
   const [bafkError, setBafkError] = useState<string | null>(null);
