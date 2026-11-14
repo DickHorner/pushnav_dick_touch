@@ -101,6 +101,7 @@ export interface EnginePayload {
   image_w: number;
   image_h: number;
   finder_rotation: number;
+  mount_axes?: { up: [number, number]; right: [number, number] } | null;
   fov_h_deg: number;
   has_calibration: boolean;
   image_size: [number, number] | null;
