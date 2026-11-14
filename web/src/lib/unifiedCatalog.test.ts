@@ -28,6 +28,8 @@ describe("one shared sky search", () => {
   it("finds common German names across source catalogs", () => {
     expect(searchCatalog("Siebengestirn", index)[0].title).toMatch(/Pleiades|Plejaden/i);
     expect(searchCatalog("Orionnebel", index).length).toBeGreaterThan(0);
+    expect(searchCatalog("Wega", index)[0].source).toBe("HYG");
+    expect(searchCatalog("Polarstern", index)[0].source).toBe("HYG");
     expect(searchCatalog("Kugelsternhaufen", index).length).toBeGreaterThan(0);
   });
 
