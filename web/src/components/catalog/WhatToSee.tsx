@@ -132,7 +132,7 @@ export function WhatToSee({ state, onSwitchToNavigation }: Props) {
   const activeTarget = activeList?.targets[activeList.selectedIndex] ?? null;
   const observedSelection = activeTarget ? resolveCatalogTarget(activeTarget.name, index) : null;
   const recommendation = recommendations.find((obj) => obj.id === selectedId) ?? null;
-  const resultSelection = index.find((item) => item.key === selectedKey)?.target ?? null;
+  const resultSelection = results.find((item) => item.key === selectedKey)?.target ?? null;
 
   function currentSolarTarget(target: CatalogTarget | null): CatalogTarget | null {
     if (target?.kind !== "solar") return target;
