@@ -152,7 +152,8 @@ def compute_navigation(
     """Compute full navigation result from current pointing to target."""
     sep = angular_separation(ra, dec, target_ra, target_dec)
     sky_pa = sky_position_angle(ra, dec, target_ra, target_dec)
-    camera_angle = (sky_pa - roll) % 360.0
+    # Gnomonic convention: celestial east is image-left at roll=0.
+    camera_angle = (roll - sky_pa) % 360.0
 
     cam_r = math.radians(camera_angle)
     delta_right = sep * math.sin(cam_r)
@@ -180,6 +181,35 @@ def compute_navigation(
         pixel_x=px,
         pixel_y=py,
         in_fov=in_fov,
+    )
+
+
+def camera_motion_axis(
+    ra: float, dec: float, roll: float, moved_ra: float, moved_dec: float,
+) -> tuple[float, float]:
+    """Unit telescope-motion direction in the fixed camera (right, up) frame."""
+    angle = math.radians(
+        (roll - sky_position_angle(ra, dec, moved_ra, moved_dec)) % 360.0
+    )
+    return math.sin(angle), math.cos(angle)
+
+
+def mount_deltas(
+    camera_angle_deg: float, separation_deg: float, axes: dict,
+) -> tuple[float, float]:
+    """Resolve the target's camera-frame bearing into measured right/up strokes."""
+    right_x, right_y = axes["right"]
+    up_x, up_y = axes["up"]
+    det = right_x * up_y - right_y * up_x
+    if abs(det) < 0.6:
+        raise ValueError("Mount calibration axes are nearly parallel")
+
+    theta = math.radians(camera_angle_deg)
+    target_x = separation_deg * math.sin(theta)
+    target_y = separation_deg * math.cos(theta)
+    return (
+        (target_x * up_y - target_y * up_x) / det,
+        (right_x * target_y - right_y * target_x) / det,
     )
 
 
