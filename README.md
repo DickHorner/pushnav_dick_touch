@@ -82,6 +82,8 @@ Supports **Windows**, **macOS**, and **Linux**. The core app is written in Pytho
 - Saves calibration for quick re-sync
 - Works from urban light-polluted skies with the right camera/lens combo (see hardware guide)
 
+An optional **private BAfK observing atlas** can be imported into **What to See → BAfK**. A locally converted July 2020 PDF supplies 1,420 deep-sky objects, 23 stellar associations, observing advice and 829 illustrations, all stored in the user's configuration directory rather than the public repository. See [BAfK private import](docs/bafk-import.md). Solar-system ephemerides are not part of this atlas.
+
 ## Prerequisites
 
 - **Python 3.12+**
