@@ -153,6 +153,7 @@ class SolverThread:
 
     _VALID_STATES = (EngineState.CALIBRATE, EngineState.WARMING_UP, EngineState.TRACKING)
     _AUDIO_FAIL_THRESHOLD = 3  # consecutive failures before audio alert
+    _AUDIO_FAIL_SECONDS = 2.0  # avoid lock/lost chatter on brief solve gaps
     _CALIBRATE_MIN_SEP = 0.5  # minimum angular separation (degrees) for calibration
     _CALIBRATE_MAX_SEP = 15.0  # reject oversized moves with poor tangent-plane geometry
     _CALIBRATE_STABLE_TOL = 0.05  # max frame-to-frame drift (degrees) to count as stable
@@ -219,6 +220,16 @@ class SolverThread:
         self._state_machine.transition(EngineState.WARMING_UP)
         return True
 
+    def _record_failure(self) -> None:
+        self._pointing.clear_centroids()
+        with self._lock:
+            self._consecutive_failures += 1
+            new_count = self._consecutive_failures
+        if self._audio and new_count >= self._AUDIO_FAIL_THRESHOLD:
+            age = time.monotonic() - self._pointing.read().last_success_timestamp
+            if age >= self._AUDIO_FAIL_SECONDS:
+                self._audio.on_failure_count_changed(new_count)
+
     def _run(self) -> None:
         last_frame_id = -1
         first_success = True
@@ -253,12 +264,7 @@ class SolverThread:
                 )
             except Exception as exc:
                 logger.error("Solve error: %s", exc)
-                self._pointing.clear_centroids()
-                with self._lock:
-                    self._consecutive_failures += 1
-                    new_count = self._consecutive_failures
-                if self._audio and new_count == self._AUDIO_FAIL_THRESHOLD:
-                    self._audio.on_failure_count_changed(new_count)
+                self._record_failure()
                 continue
 
             if self._solver.is_valid(
@@ -310,12 +316,7 @@ class SolverThread:
                     result["Prob"],
                 )
             else:
-                self._pointing.clear_centroids()
-                with self._lock:
-                    self._consecutive_failures += 1
-                    new_count = self._consecutive_failures
-                if self._audio and new_count == self._AUDIO_FAIL_THRESHOLD:
-                    self._audio.on_failure_count_changed(new_count)
+                self._record_failure()
                 if result.get("RA") is not None:
                     logger.debug(
                         "Solve rejected: M=%d P=%.4f",
