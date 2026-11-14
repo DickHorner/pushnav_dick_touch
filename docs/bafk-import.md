@@ -11,7 +11,7 @@ PushNav can import a private, locally prepared copy of the **Beobachter-Atlas f�
    uv run --with pymupdf python scripts/build_bafk_package.py /path/to/BAfK_final_2020_07.pdf /path/to/bafk.zip
    ```
 
-3. Start PushNav, open **What to See → BAfK**, and choose the generated ZIP file under **BAfK-Paket importieren**. Import is restricted to the computer running PushNav.
+3. Start PushNav, open **What to See → Suche → BAfK-Atlas importieren**, and choose the generated ZIP file under **BAfK-Paket importieren**. Import is restricted to the computer running PushNav.
 4. Search by catalog identifier or a word in the German observing descriptions. Selecting a result shows the image, observing notes, aperture and filter recommendations, original PDF page, and the ordinary PushNav target action.
 
 The converter expects the **July 2020, 107-page edition**. It checks for 1,420 objects plus 23 associations and extracts 829 placed illustrations. It does not use OCR. The backend also validates the package count, file names, types, coordinates and archive sizes before replacing an existing local import.
