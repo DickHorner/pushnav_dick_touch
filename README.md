@@ -70,7 +70,7 @@ Supports **Windows**, **macOS**, and **Linux**. The core app is written in Pytho
 ## Features
 
 - Near real-time plate solving (~20–140 ms per frame)
-- One time, simple calibration. No named stars, just point at any bright star and sync
+- One time, simple calibration. No named stars, just point at any bright star and sync, then move the telescope UP and RIGHT by at least 0.5° each to teach PushNav the actual mount directions. The PUSH arrow then indicates physical telescope movement; the in-frame target marker still shows the target's camera-image position. If you skip mount-axis calibration, physical direction arrows are disabled.
 - GOTO navigation guidance for targets picked inside PushNav's **What to See** catalog or sent from your planetarium app (Stellarium, SkySafari, Stellarium Mobile, etc.)
 - Built-in **"What to See"** target picker with three modes: **Buddy** (161 hand-picked deep-sky objects filterable by equipment, light-pollution tolerance and visual reward), **Advanced** (fuzzy search across 12,522 NGC objects from OpenNGC and 8,825 bright stars from HYG), and **Manual coordinates** (HMS/DMS RA/Dec entry for anything not in the catalogs). Visibility (alt/az, rise/transit/set) is recomputed live for your location and time; one click promotes the selected object to the GOTO target. Below-horizon objects can't be set as a target.
 - Works with **SkySafari**, **Stellarium Mobile**, **INDI**, and **ASCOM** clients over Wi-Fi via the LX200 protocol, with `:D#` slew-status so SkySafari's "Stop / GoTo" button transitions correctly
