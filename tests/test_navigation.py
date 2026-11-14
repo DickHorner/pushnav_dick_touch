@@ -23,7 +23,9 @@ import pytest
 
 from evf.engine.navigation import (
     angular_separation,
+    camera_motion_axis,
     compute_navigation,
+    mount_deltas,
     edge_arrow_position,
     gnomonic_project,
     sky_position_angle,
@@ -167,6 +169,43 @@ class TestComputeNavigation:
         assert nav.delta_up_deg > 0.5
         assert abs(nav.delta_right_deg) < 0.1
         assert nav.camera_angle_deg == pytest.approx(0.0, abs=1.0)
+
+    def test_east_target_matches_gnomonic_camera_left(self):
+        """At roll 0, the target is image-left; the old angle pointed right."""
+        nav = compute_navigation(0.0, 0.0, 0.0, 1.0, 0.0, 10.0, 640, 480)
+        assert nav.camera_angle_deg == pytest.approx(270.0, abs=0.1)
+        assert nav.delta_right_deg < 0
+        assert nav.pixel_x is not None and nav.pixel_x < 320
+
+    def test_measured_right_axis_reverses_camera_left(self):
+        """Physically moving right can point at a target appearing image-left."""
+        up = camera_motion_axis(0.0, 0.0, 0.0, 0.0, 1.0)
+        right = camera_motion_axis(0.0, 1.0, 0.0, 1.0, 1.0)
+        assert up == pytest.approx((0.0, 1.0), abs=1e-9)
+        assert right == pytest.approx((-1.0, 0.0), abs=0.01)
+        nav = compute_navigation(0.0, 0.0, 0.0, 1.0, 0.0, 10.0, 640, 480)
+        move_right, move_up = mount_deltas(
+            nav.camera_angle_deg, nav.separation_deg,
+            {"right": list(right), "up": list(up)},
+        )
+        assert move_right == pytest.approx(1.0, abs=0.01)
+        assert move_up == pytest.approx(0.0, abs=0.01)
+
+    def test_rotated_camera_motion_basis(self):
+        """Rotating the finder does not reverse the measured physical push."""
+        up = camera_motion_axis(0.0, 0.0, 90.0, 0.0, 1.0)
+        right = camera_motion_axis(0.0, 1.0, 90.0, 1.0, 1.0)
+        nav = compute_navigation(0.0, 0.0, 90.0, 1.0, 0.0, 10.0, 640, 480)
+        r, u = mount_deltas(nav.camera_angle_deg, nav.separation_deg,
+                            {"right": list(right), "up": list(up)})
+        assert r == pytest.approx(1.0, abs=0.01)
+        assert u == pytest.approx(0.0, abs=0.01)
+
+    def test_parallel_mount_axes_rejected(self):
+        with pytest.raises(ValueError, match="parallel"):
+            mount_deltas(90.0, 2.0, {
+                "right": [0.0, 1.0], "up": [0.0, 1.0],
+            })
 
     def test_direction_text_format(self):
         """direction_text should contain R/L and U/D indicators."""

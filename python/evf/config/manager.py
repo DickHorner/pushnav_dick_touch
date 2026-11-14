@@ -19,6 +19,7 @@
 
 import json
 import logging
+import math
 import os
 import platform
 from pathlib import Path
@@ -31,7 +32,7 @@ DEFAULT_CONFIG = {
     "version": CONFIG_VERSION,
     "solver": {"min_matches": 8, "max_prob": 0.2},
     "camera": {"exposure": None, "gain": None, "extra_camera_ids": []},
-    "calibration": {"finder_rotation": 0.0, "sync_d_body": None},
+    "calibration": {"finder_rotation": 0.0, "sync_d_body": None, "mount_axes": None},
     "logging": {"verbose": False},
     "audio": {"enabled": True},
     "lx200": {"epoch": "jnow"},
@@ -180,6 +181,31 @@ class ConfigManager:
     @sync_d_body.setter
     def sync_d_body(self, value: list[float] | None) -> None:
         self.set("calibration", "sync_d_body", value)
+
+    @property
+    def mount_axes(self) -> dict[str, list[float]] | None:
+        """Stored camera-frame directions of positive mount right and up moves."""
+        axes = self.get("calibration", "mount_axes")
+        if not isinstance(axes, dict):
+            return None
+        for name in ("right", "up"):
+            axis = axes.get(name)
+            if not isinstance(axis, list) or len(axis) != 2:
+                return None
+            if any(type(component) not in (float, int) or not math.isfinite(component)
+                   for component in axis):
+                return None
+            if not 0.9 <= math.hypot(*axis) <= 1.1:
+                return None
+        rx, ry = axes["right"]
+        ux, uy = axes["up"]
+        if abs(rx * uy - ry * ux) < 0.6:
+            return None
+        return axes
+
+    @mount_axes.setter
+    def mount_axes(self, axes: dict[str, list[float]] | None) -> None:
+        self.set("calibration", "mount_axes", axes)
 
     @property
     def has_calibration(self) -> bool:

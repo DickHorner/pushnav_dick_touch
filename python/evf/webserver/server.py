@@ -36,7 +36,7 @@ from aiohttp import web
 from evf.config.manager import ConfigManager
 from evf.engine.frame_buffer import LatestFrame
 from evf.engine.goto_target import GotoTarget
-from evf.engine.navigation import compute_navigation, edge_arrow_position
+from evf.engine.navigation import compute_navigation, edge_arrow_position, mount_deltas
 from evf.engine.pointing import PointingState
 from evf.engine.state import EngineState, StateMachine
 from evf.network import local_ip
@@ -159,6 +159,7 @@ class WebServer:
         stellarium_object: Callable[[], dict | None] | None = None,
         camera_controls: Callable[[], list[dict] | None] | None = None,
         sync_state: Callable[[], dict] | None = None,
+        calibration_state: Callable[[], dict] | None = None,
         activity: Callable[[], dict] | None = None,
         stellarium_location: Callable[[], dict | None] | None = None,
         location: Callable[[], dict] | None = None,
@@ -178,6 +179,7 @@ class WebServer:
         self._stellarium_object = stellarium_object
         self._camera_controls = camera_controls
         self._sync_state = sync_state
+        self._calibration_state = calibration_state
         self._activity = activity
         self._stellarium_location = stellarium_location
         self._location_fn = location
@@ -773,10 +775,13 @@ class WebServer:
             "image_h": _IMG_H,
             "finder_rotation": 0.0 if self._sim_mode else self._config.finder_rotation,
             "fov_h_deg": fov_h_deg,
-            "has_calibration": not self._sim_mode and self._config.has_calibration,
+            "has_calibration": (not self._sim_mode and self._config.has_calibration
+                                and self._config.mount_axes is not None),
             "image_size": list(snap.image_size) if snap.valid and snap.image_size else None,
             "controls": controls or [],
             "sync": sync_blk,
+            "calibration": (self._calibration_state() if self._calibration_state
+                            else {"phase": "up", "error": None}),
             "stellarium": stellarium_blk,
             "lx200":      activity_blk.get("lx200",      {"active": False, "address": None}),
             "webserver":  activity_blk.get("webserver",  {"url": None}),
@@ -815,7 +820,8 @@ class WebServer:
             return {**base, "separation_deg": None, "direction_text": "--",
                     "in_fov": False, "pixel_x": None, "pixel_y": None,
                     "camera_angle_deg": None, "edge_x": None, "edge_y": None,
-                    "edge_angle_deg": None}
+                    "edge_angle_deg": None, "mount_right_deg": None,
+                    "mount_up_deg": None}
 
         nav = compute_navigation(
             snap.ra_j2000, snap.dec_j2000, snap.roll,
@@ -842,29 +848,39 @@ class WebServer:
             and 0 <= offset_pixel_y < _IMG_H
         )
 
+        # Camera pixel coordinates describe where the target appears in the image.
+        # The big PUSH arrow instead shows how to move the physical mount.
+        axes = (
+            {"up": [0.0, 1.0], "right": [-1.0, 0.0]}
+            if self._sim_mode else self._config.mount_axes
+        )
+        mount_right = mount_up = None
+        direction_text = "Mount axes not calibrated"
         edge_x = edge_y = edge_angle = None
-        if not in_fov:
-            if offset_pixel_x is not None:
-                edge_x, edge_y, edge_angle = edge_arrow_position(
-                    offset_pixel_x, offset_pixel_y,
-                    _IMG_W, _IMG_H, margin=68,
-                    origin_x=origin_x, origin_y=origin_y,
-                )
-            else:
-                # Target behind camera — derive direction from camera_angle_deg
+        if axes is not None:
+            mount_right, mount_up = mount_deltas(
+                nav.camera_angle_deg, nav.separation_deg, axes,
+            )
+            direction_text = (
+                f"{abs(mount_right):.1f}° {'R' if mount_right >= 0 else 'L'}  "
+                f"{abs(mount_up):.1f}° {'U' if mount_up >= 0 else 'D'}"
+            )
+            if not in_fov and nav.separation_deg > 0.0:
+                physical_angle = math.atan2(mount_right, mount_up)
                 far = max(_IMG_W, _IMG_H) * 10.0
-                rad = math.radians(nav.camera_angle_deg)
-                far_x = origin_x + far * math.sin(rad)
-                far_y = origin_y - far * math.cos(rad)
                 edge_x, edge_y, edge_angle = edge_arrow_position(
-                    far_x, far_y, _IMG_W, _IMG_H, margin=68,
+                    origin_x + far * math.sin(physical_angle),
+                    origin_y - far * math.cos(physical_angle),
+                    _IMG_W, _IMG_H, margin=68,
                     origin_x=origin_x, origin_y=origin_y,
                 )
 
         return {
             **base,
             "separation_deg": nav.separation_deg,
-            "direction_text": nav.direction_text,
+            "direction_text": direction_text,
+            "mount_right_deg": mount_right,
+            "mount_up_deg": mount_up,
             "in_fov": in_fov,
             "pixel_x": offset_pixel_x,
             "pixel_y": offset_pixel_y,
