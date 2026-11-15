@@ -72,8 +72,10 @@ def test_push_arrow_uses_mount_axes_not_target_camera_pixel(tmp_path):
     target = GotoTarget()
     target.set(5.0, 0.0)  # celestial east = image left with roll=0
     ws = WebServer(pointing, StateMachine(), target, cfg)
-    nav = ws._build_payload()["nav"]
+    payload = ws._build_payload()
+    nav = payload["nav"]
 
+    assert payload["mount_axes"] == cfg.mount_axes
     assert nav["pixel_x"] < 0
     assert nav["mount_right_deg"] > 0
     assert abs(nav["mount_up_deg"]) < 0.01
@@ -81,7 +83,9 @@ def test_push_arrow_uses_mount_axes_not_target_camera_pixel(tmp_path):
     assert "R" in nav["direction_text"]
 
     cfg.mount_axes = None
-    uncalibrated = ws._build_payload()["nav"]
+    uncalibrated_payload = ws._build_payload()
+    uncalibrated = uncalibrated_payload["nav"]
+    assert uncalibrated_payload["mount_axes"] is None
     assert uncalibrated["pixel_x"] < 0
     assert uncalibrated["edge_angle_deg"] is None
     assert uncalibrated["mount_right_deg"] is None

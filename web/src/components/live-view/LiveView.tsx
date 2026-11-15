@@ -11,11 +11,15 @@ interface Props {
 }
 
 const NO_STARS_STATES = ["CALIBRATE", "WARMING_UP", "TRACKING"];
+const NO_SOLVE_GRACE_SECONDS = 2;
 
 export function LiveView({ state, showStars }: Props) {
   const { image_w, image_h } = state;
   const noStars =
-    NO_STARS_STATES.includes(state.state) && state.failures >= 3;
+    NO_STARS_STATES.includes(state.state)
+    && state.failures >= 3
+    && (!state.pointing.valid
+      || (state.pointing.solve_age_s ?? 0) >= NO_SOLVE_GRACE_SECONDS);
 
   return (
     <div
@@ -42,7 +46,7 @@ export function LiveView({ state, showStars }: Props) {
       </svg>
       {noStars && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-destructive text-destructive-foreground px-4 py-2 rounded font-semibold animate-pulse shadow-lg">
-          NO STARS — point at darker sky / clouds?
+          NO PLATE SOLVE — hold still / check sky and camera settings
         </div>
       )}
     </div>
